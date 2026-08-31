@@ -846,15 +846,28 @@ $(document).ready(function () {
             if (!procs || !procs.length) return null;
             const sorted = procs.slice().sort(function (a, b) { return b.memory - a.memory; });
             let html = '<div class="nvtop-procs"><table><thead><tr>' +
-                '<th>PID</th><th>DEV</th><th>TYPE</th><th class="num">MEM</th><th>PROCESS</th>' +
-                '</tr></thead><tbody>';
+                '<th>PID</th><th>USER</th><th class="num">DEV</th><th>TYPE</th>' +
+                '<th class="num">GPU</th><th class="num">MEM</th><th class="num">CPU</th><th class="num">HOST</th>' +
+                '<th class="cmd">COMMAND</th></tr></thead><tbody>';
             sorted.forEach(function (p) {
-                html += '<tr><td>' + p.pid + '</td><td>' + p.gpuIndex + '</td><td>' + p.type +
-                    '</td><td class="num">' + p.memory + 'M</td><td class="proc-name"></td></tr>';
+                html += '<tr>' +
+                    '<td>' + p.pid + '</td>' +
+                    '<td class="user"></td>' +
+                    '<td class="num">' + p.gpuIndex + '</td>' +
+                    '<td>' + p.type + '</td>' +
+                    '<td class="num">' + (p.gpu >= 0 ? p.gpu + '%' : '-') + '</td>' +
+                    '<td class="num">' + p.memory + 'M</td>' +
+                    '<td class="num">' + Math.round(p.cpu) + '%</td>' +
+                    '<td class="num">' + p.hostMem + 'M</td>' +
+                    '<td class="cmd"></td>' +
+                    '</tr>';
             });
             html += '</tbody></table></div>';
             const $frag = $(html);
-            $frag.find('.proc-name').each(function (i) { $(this).text(shortName(sorted[i].name)); });
+            $frag.find('tbody tr').each(function (i) {
+                $(this).find('.user').text(sorted[i].user || '');
+                $(this).find('.cmd').text(sorted[i].command || sorted[i].name || '');
+            });
             return $frag;
         }
 

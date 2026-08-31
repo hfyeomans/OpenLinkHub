@@ -78,11 +78,16 @@ type GpuStat struct {
 
 // GpuProcess is a single GPU process row for the GPU Monitor widget.
 type GpuProcess struct {
-	GpuIndex int    `json:"gpuIndex"`
-	Pid      int    `json:"pid"`
-	Type     string `json:"type"`
-	Name     string `json:"name"`
-	Memory   int    `json:"memory"`
+	GpuIndex int     `json:"gpuIndex"`
+	Pid      int     `json:"pid"`
+	Type     string  `json:"type"`
+	Name     string  `json:"name"`
+	Gpu      int     `json:"gpu"`     // per-process GPU % (sm), -1 when unavailable
+	Memory   int     `json:"memory"`  // GPU memory (MiB)
+	User     string  `json:"user"`    // process owner
+	Cpu      float64 `json:"cpu"`     // host CPU %
+	HostMem  int     `json:"hostMem"` // host RSS (MiB)
+	Command  string  `json:"command"` // full command line
 }
 
 // GpuStats bundles per-GPU telemetry with the GPU process table.
@@ -470,12 +475,112 @@ func GetGpuProcesses() []GpuProcess {
 		procs = append(procs, GpuProcess{
 			GpuIndex: gpuIndex,
 			Pid:      pid,
-			Type:     m[3],
+			Type:     gpuProcessType(m[3]),
 			Name:     strings.TrimSpace(m[4]),
+			Gpu:      -1,
 			Memory:   memory,
 		})
 	}
+
+	enrichGpuProcessUtilization(procs) // per-process GPU % via pmon
+	enrichHostProcessInfo(procs)       // user / cpu% / host mem / command via ps
 	return procs
+}
+
+// gpuProcessType expands nvidia-smi's terse process type into a readable label.
+func gpuProcessType(t string) string {
+	switch t {
+	case "C":
+		return "Compute"
+	case "G", "C+G", "G+C":
+		return "Graphic"
+	}
+	return t
+}
+
+// enrichGpuProcessUtilization fills per-process GPU % (sm) from nvidia-smi pmon.
+func enrichGpuProcessUtilization(procs []GpuProcess) {
+	output, err := exec.Command("nvidia-smi", "pmon", "-c", "1").Output()
+	if err != nil {
+		return
+	}
+	sm := make(map[string]int)
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		f := strings.Fields(line)
+		if len(f) < 4 {
+			continue
+		}
+		v, err := strconv.Atoi(f[3])
+		if err != nil {
+			continue // "-" when unsupported
+		}
+		sm[f[0]+":"+f[1]] = v
+	}
+	for i := range procs {
+		if v, ok := sm[strconv.Itoa(procs[i].GpuIndex)+":"+strconv.Itoa(procs[i].Pid)]; ok {
+			procs[i].Gpu = v
+		}
+	}
+}
+
+// enrichHostProcessInfo fills user, cpu %, host memory and full command via ps.
+func enrichHostProcessInfo(procs []GpuProcess) {
+	if len(procs) == 0 {
+		return
+	}
+	seen := make(map[int]bool)
+	pids := make([]string, 0, len(procs))
+	for _, p := range procs {
+		if !seen[p.Pid] {
+			seen[p.Pid] = true
+			pids = append(pids, strconv.Itoa(p.Pid))
+		}
+	}
+
+	output, err := exec.Command("ps", "-o", "pid=,user=,pcpu=,rss=,args=", "-p", strings.Join(pids, ",")).Output()
+	if err != nil {
+		return
+	}
+
+	type hostInfo struct {
+		user    string
+		cpu     float64
+		hostMem int
+		command string
+	}
+	info := make(map[int]hostInfo)
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		f := strings.Fields(scanner.Text())
+		if len(f) < 5 {
+			continue
+		}
+		pid, err := strconv.Atoi(f[0])
+		if err != nil {
+			continue
+		}
+		cpu, _ := strconv.ParseFloat(f[2], 64)
+		rss, _ := strconv.Atoi(f[3])
+		info[pid] = hostInfo{
+			user:    f[1],
+			cpu:     cpu,
+			hostMem: rss / 1024,
+			command: strings.Join(f[4:], " "),
+		}
+	}
+	for i := range procs {
+		if h, ok := info[procs[i].Pid]; ok {
+			procs[i].User = h.user
+			procs[i].Cpu = h.cpu
+			procs[i].HostMem = h.hostMem
+			procs[i].Command = h.command
+		}
+	}
 }
 
 // GetNVIDIAUtilization will return NVIDIA gpu utilization
