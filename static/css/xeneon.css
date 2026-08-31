@@ -803,3 +803,39 @@ code {
     text-overflow: ellipsis;
     max-width: 0;
 }
+
+/* GPU Monitor history graphs (3x tier) */
+.nvtop-graphs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+.nvtop-graph {
+    position: relative;
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 4px;
+}
+.nvtop-graph svg {
+    display: block;
+    width: 100%;
+    height: 90px;
+}
+.nvtop-graph .line-gpu { fill: none; stroke: #38bdf8; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.nvtop-graph .area-gpu { fill: rgba(56, 189, 248, 0.15); stroke: none; }
+.nvtop-graph .line-mem { fill: none; stroke: #a78bfa; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.nvtop-graph .area-mem { fill: rgba(167, 139, 250, 0.12); stroke: none; }
+.nvtop-graph-legend {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    display: flex;
+    gap: 10px;
+    font-size: 9px;
+    z-index: 1;
+    pointer-events: none;
+}
+.nvtop-graph-legend .gpu { color: #38bdf8; }
+.nvtop-graph-legend .mem { color: #a78bfa; }

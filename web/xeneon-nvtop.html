@@ -1,7 +1,7 @@
 {{ define "xeneon-nvtop" }}
 {{ $root := .Root }}
 {{ $widget := .Widget }}
-<div class="edge-panel nvtop-panel" id="xeneon-nvtop"{{ with .Span }} style="flex-grow: {{ . }};"{{ end }}>
+<div class="edge-panel nvtop-panel" id="xeneon-nvtop" data-span="{{ with .Span }}{{ . }}{{ else }}1{{ end }}"{{ with .Span }} style="flex-grow: {{ . }};"{{ end }}>
     <div class="card system-card"{{ if $widget.BackgroundColor }} style="background: {{ $widget.BackgroundColor }} !important;{{ if $widget.TextColor }} color: {{ $widget.TextColor }} !important;{{ end }}"{{ end }}>
         <div class="card-body">
             <div class="nvtop-list">

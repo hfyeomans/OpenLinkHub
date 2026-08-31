@@ -741,29 +741,15 @@ $(document).ready(function () {
         });
     }
 
-    // GPU Monitor (nvtop-style)
+    // GPU Monitor (nvtop-style, span-tiered: 1x device info, 2x + processes, 3x + graphs)
     if ($('#xeneon-nvtop').length) {
-        const NVTOP_HISTORY = 48;
+        const NVTOP_HISTORY = 60;
+        const nvtopSpan = parseInt($('#xeneon-nvtop').attr('data-span')) || 1;
         const histories = {};
 
         function nvtopBar(pct, color) {
             const p = Math.max(0, Math.min(100, pct));
             return '<div class="nvtop-bar"><span style="width:' + p + '%;background:' + color + '"></span></div>';
-        }
-
-        function nvtopSpark(vals) {
-            if (!vals || vals.length < 2) {
-                return '';
-            }
-            const w = 100, h = 24;
-            const step = w / (NVTOP_HISTORY - 1);
-            const pts = vals.map(function (v, i) {
-                const x = (i + (NVTOP_HISTORY - vals.length)) * step;
-                const y = h - (Math.max(0, Math.min(100, v)) / 100) * h;
-                return x.toFixed(1) + ',' + y.toFixed(1);
-            }).join(' ');
-            return '<svg class="nvtop-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
-                '<polyline points="' + pts + '"></polyline></svg>';
         }
 
         function tempColor(t) {
@@ -783,12 +769,20 @@ $(document).ready(function () {
             return n.length > 22 ? n.slice(0, 21) + '…' : n;
         }
 
+        // record util + mem% history for each GPU every poll
+        function accumulate(stats) {
+            stats.forEach(function (g) {
+                const h = histories[g.index] || (histories[g.index] = {util: [], mem: []});
+                const memPct = g.memoryTotal > 0 ? (g.memoryUsed / g.memoryTotal) * 100 : 0;
+                h.util.push(g.utilization);
+                h.mem.push(memPct);
+                if (h.util.length > NVTOP_HISTORY) { h.util.shift(); h.mem.shift(); }
+            });
+        }
+
         function renderGpuCards(stats) {
             let html = '<div class="nvtop-gpus">';
             stats.forEach(function (g) {
-                const hist = histories[g.index] || (histories[g.index] = []);
-                hist.push(g.utilization);
-                if (hist.length > NVTOP_HISTORY) hist.shift();
                 const memPct = g.memoryTotal > 0 ? (g.memoryUsed / g.memoryTotal) * 100 : 0;
                 html +=
                     '<div class="nvtop-gpu">' +
@@ -797,7 +791,7 @@ $(document).ready(function () {
                     '<span class="nvtop-temp" style="color:' + tempColor(g.temperature) + '">' + g.temperature + '°C</span>' +
                     '</div>' +
                     '<div class="nvtop-metric"><span class="nvtop-label">GPU</span>' + nvtopBar(g.utilization, '#38bdf8') +
-                    '<span class="nvtop-val">' + g.utilization + '%</span>' + nvtopSpark(hist) + '</div>' +
+                    '<span class="nvtop-val">' + g.utilization + '%</span></div>' +
                     '<div class="nvtop-metric"><span class="nvtop-label">MEM</span>' + nvtopBar(memPct, '#a78bfa') +
                     '<span class="nvtop-val">' + gb(g.memoryUsed) + '/' + gb(g.memoryTotal) + ' GB</span></div>' +
                     '<div class="nvtop-footer">' +
@@ -805,6 +799,37 @@ $(document).ready(function () {
                     '<span>Fan ' + g.fanSpeed + '%</span>' +
                     '<span>' + g.clockGraphics + '/' + g.clockMemory + ' MHz</span>' +
                     '</div></div>';
+            });
+            return html + '</div>';
+        }
+
+        function areaPath(vals, w, h) {
+            if (!vals.length) return '';
+            const step = w / (NVTOP_HISTORY - 1);
+            let d = '';
+            vals.forEach(function (v, i) {
+                const x = (i + (NVTOP_HISTORY - vals.length)) * step;
+                const y = h - (Math.max(0, Math.min(100, v)) / 100) * h;
+                d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+            });
+            const startX = ((NVTOP_HISTORY - vals.length) * step).toFixed(1);
+            const endX = ((vals.length - 1 + (NVTOP_HISTORY - vals.length)) * step).toFixed(1);
+            return {line: d.trim(), fill: 'M' + startX + ' ' + h + ' ' + d.trim().slice(1) + ' L' + endX + ' ' + h + ' Z'};
+        }
+
+        function renderGraphs(stats) {
+            const w = 240, h = 90;
+            let html = '<div class="nvtop-graphs">';
+            stats.forEach(function (g) {
+                const h2 = histories[g.index] || {util: [], mem: []};
+                const util = areaPath(h2.util, w, h);
+                const mem = areaPath(h2.mem, w, h);
+                html += '<div class="nvtop-graph">' +
+                    '<div class="nvtop-graph-legend"><span class="gpu">GPU' + g.index + ' %</span><span class="mem">MEM %</span></div>' +
+                    '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+                    (util ? '<path class="area-gpu" d="' + util.fill + '"/><path class="line-gpu" d="' + util.line + '"/>' : '') +
+                    (mem ? '<path class="area-mem" d="' + mem.fill + '"/><path class="line-mem" d="' + mem.line + '"/>' : '') +
+                    '</svg></div>';
             });
             return html + '</div>';
         }
@@ -834,9 +859,13 @@ $(document).ready(function () {
                 $list.append($('<div class="nvtop-empty"></div>').text(i18n.t('txtNoGpuData', 'No GPU data')));
                 return;
             }
-            $list.append(renderGpuCards(stats));
-            const $procs = renderProcs(procs);
-            if ($procs) $list.append($procs);
+            accumulate(stats);
+            $list.append(renderGpuCards(stats));                 // 1x+: device info
+            if (nvtopSpan >= 3) $list.append(renderGraphs(stats)); // 3x: history graphs
+            if (nvtopSpan >= 2) {                                 // 2x+: process table
+                const $procs = renderProcs(procs);
+                if ($procs) $list.append($procs);
+            }
         }
 
         const pollNvtop = function () {
