@@ -736,19 +736,26 @@ func (d *Device) loadDeviceProfiles() {
 	d.getDeviceProfile()
 }
 
-// mergeCatalogWidgets will append catalog widgets missing from a stored profile,
-// so profiles saved before a catalog update pick up newly added widgets
+// mergeCatalogWidgets reconciles a stored profile against the widget catalog:
+// widgets missing from the profile are appended, and for widgets already present
+// the catalog-owned structural fields (name, template, columns, gpu index) are
+// refreshed so catalog fixes reach existing profiles. User-customizable fields
+// (colors, header text, media, location, etc.) are left untouched.
 func (d *Device) mergeCatalogWidgets(pf *DeviceProfile) {
-	for _, widget := range d.Widgets {
-		found := false
+	for _, catalog := range d.Widgets {
+		existing := false
 		for i := range pf.Widgets {
-			if pf.Widgets[i].Id == widget.Id {
-				found = true
+			if pf.Widgets[i].Id == catalog.Id {
+				pf.Widgets[i].Name = catalog.Name
+				pf.Widgets[i].Template = catalog.Template
+				pf.Widgets[i].Columns = catalog.Columns
+				pf.Widgets[i].GpuIndex = catalog.GpuIndex
+				existing = true
 				break
 			}
 		}
-		if !found {
-			pf.Widgets = append(pf.Widgets, widget)
+		if !existing {
+			pf.Widgets = append(pf.Widgets, catalog)
 		}
 	}
 }
