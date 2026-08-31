@@ -70,6 +70,10 @@ type GpuStat struct {
 	FanSpeed      int     `json:"fanSpeed"`
 	ClockGraphics int     `json:"clockGraphics"`
 	ClockMemory   int     `json:"clockMemory"`
+	PcieGen       int     `json:"pcieGen"`
+	PcieWidth     int     `json:"pcieWidth"`
+	RxPci         int     `json:"rxPci"`
+	TxPci         int     `json:"txPci"`
 }
 
 // GpuProcess is a single GPU process row for the GPU Monitor widget.
@@ -360,7 +364,7 @@ func GetGpuStats() []GpuStat {
 	}
 
 	cmd := exec.Command("nvidia-smi",
-		"--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit,fan.speed,clocks.gr,clocks.mem",
+		"--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit,fan.speed,clocks.gr,clocks.mem,pcie.link.gen.gpucurrent,pcie.link.width.current",
 		"--format=csv,noheader,nounits")
 	output, err := cmd.Output()
 	if err != nil {
@@ -379,7 +383,7 @@ func GetGpuStats() []GpuStat {
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
 		fields := strings.Split(scanner.Text(), ", ")
-		if len(fields) < 11 {
+		if len(fields) < 13 {
 			continue
 		}
 		stats = append(stats, GpuStat{
@@ -394,9 +398,48 @@ func GetGpuStats() []GpuStat {
 			FanSpeed:      atoi(fields[8]),
 			ClockGraphics: atoi(fields[9]),
 			ClockMemory:   atoi(fields[10]),
+			PcieGen:       atoi(fields[11]),
+			PcieWidth:     atoi(fields[12]),
 		})
 	}
+
+	// Merge PCIe RX/TX throughput (MB/s) sampled via nvidia-smi dmon.
+	throughput := getGpuThroughput()
+	for i := range stats {
+		if t, ok := throughput[stats[i].Index]; ok {
+			stats[i].RxPci = t[0]
+			stats[i].TxPci = t[1]
+		}
+	}
 	return stats
+}
+
+// getGpuThroughput samples per-GPU PCIe RX/TX (MB/s) via nvidia-smi dmon.
+func getGpuThroughput() map[int][2]int {
+	result := make(map[int][2]int)
+	output, err := exec.Command("nvidia-smi", "dmon", "-c", "1", "-s", "t").Output()
+	if err != nil {
+		return result
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		idx, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		rx, _ := strconv.Atoi(fields[1])
+		tx, _ := strconv.Atoi(fields[2])
+		result[idx] = [2]int{rx, tx}
+	}
+	return result
 }
 
 // gpuProcessRegex parses a process row from default nvidia-smi output:

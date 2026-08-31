@@ -758,18 +758,20 @@ $(document).ready(function () {
             return '#4ade80';
         }
 
-        function gb(mb) {
+        function gib(mb) {
             return (mb / 1024).toFixed(1);
         }
 
         function shortName(name) {
             if (!name) return '';
-            let n = name.split(' ')[0];      // drop args
-            n = n.split('/').pop();          // basename
-            return n.length > 22 ? n.slice(0, 21) + '…' : n;
+            let n = name.split(' ')[0].split('/').pop();
+            return n.length > 24 ? n.slice(0, 23) + '…' : n;
         }
 
-        // record util + mem% history for each GPU every poll
+        function stat(label, val) {
+            return '<span class="nvtop-stat">' + (label ? '<i>' + label + '</i>' : '') + val + '</span>';
+        }
+
         function accumulate(stats) {
             stats.forEach(function (g) {
                 const h = histories[g.index] || (histories[g.index] = {util: [], mem: []});
@@ -784,64 +786,70 @@ $(document).ready(function () {
             let html = '<div class="nvtop-gpus">';
             stats.forEach(function (g) {
                 const memPct = g.memoryTotal > 0 ? (g.memoryUsed / g.memoryTotal) * 100 : 0;
+                const pcie = g.pcieGen > 0 ? 'PCIe ' + g.pcieGen + '@' + g.pcieWidth + 'x' : '';
                 html +=
                     '<div class="nvtop-gpu">' +
-                    '<div class="nvtop-head">' +
+                    '<div class="nvtop-devline">' +
                     '<span class="nvtop-name">GPU' + g.index + ' ' + (g.name || '').replace(/NVIDIA\s+/i, '') + '</span>' +
-                    '<span class="nvtop-temp" style="color:' + tempColor(g.temperature) + '">' + g.temperature + '°C</span>' +
+                    '<span class="nvtop-pcie">' + pcie + ' &#8595;' + g.rxPci + ' &#8593;' + g.txPci + ' MB/s</span>' +
+                    '</div>' +
+                    '<div class="nvtop-statline">' +
+                    stat('GPU ', g.clockGraphics + 'MHz') +
+                    stat('MEM ', g.clockMemory + 'MHz') +
+                    '<span class="nvtop-stat" style="color:' + tempColor(g.temperature) + '">' + g.temperature + '&deg;C</span>' +
+                    stat('FAN ', g.fanSpeed + '%') +
+                    stat('POW ', Math.round(g.powerDraw) + '/' + Math.round(g.powerLimit) + 'W') +
                     '</div>' +
                     '<div class="nvtop-metric"><span class="nvtop-label">GPU</span>' + nvtopBar(g.utilization, '#38bdf8') +
                     '<span class="nvtop-val">' + g.utilization + '%</span></div>' +
                     '<div class="nvtop-metric"><span class="nvtop-label">MEM</span>' + nvtopBar(memPct, '#a78bfa') +
-                    '<span class="nvtop-val">' + gb(g.memoryUsed) + '/' + gb(g.memoryTotal) + ' GB</span></div>' +
-                    '<div class="nvtop-footer">' +
-                    '<span>' + Math.round(g.powerDraw) + '/' + Math.round(g.powerLimit) + ' W</span>' +
-                    '<span>Fan ' + g.fanSpeed + '%</span>' +
-                    '<span>' + g.clockGraphics + '/' + g.clockMemory + ' MHz</span>' +
-                    '</div></div>';
+                    '<span class="nvtop-val">' + gib(g.memoryUsed) + '/' + gib(g.memoryTotal) + 'Gi</span></div>' +
+                    '</div>';
             });
             return html + '</div>';
         }
 
         function areaPath(vals, w, h) {
-            if (!vals.length) return '';
-            const step = w / (NVTOP_HISTORY - 1);
-            let d = '';
-            vals.forEach(function (v, i) {
-                const x = (i + (NVTOP_HISTORY - vals.length)) * step;
-                const y = h - (Math.max(0, Math.min(100, v)) / 100) * h;
-                d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+            if (!vals || vals.length < 2) return null;
+            const step = w / (vals.length - 1);
+            const pt = vals.map(function (v, i) {
+                const x = (i * step).toFixed(1);
+                const y = (h - (Math.max(0, Math.min(100, v)) / 100) * h).toFixed(1);
+                return x + ' ' + y;
             });
-            const startX = ((NVTOP_HISTORY - vals.length) * step).toFixed(1);
-            const endX = ((vals.length - 1 + (NVTOP_HISTORY - vals.length)) * step).toFixed(1);
-            return {line: d.trim(), fill: 'M' + startX + ' ' + h + ' ' + d.trim().slice(1) + ' L' + endX + ' ' + h + ' Z'};
+            return {line: 'M' + pt.join(' L'), fill: 'M0 ' + h + ' L' + pt.join(' L') + ' L' + w + ' ' + h + ' Z'};
         }
 
         function renderGraphs(stats) {
             const w = 240, h = 90;
-            let html = '<div class="nvtop-graphs">';
+            const $wrap = $('<div class="nvtop-graphs"></div>');
             stats.forEach(function (g) {
-                const h2 = histories[g.index] || {util: [], mem: []};
-                const util = areaPath(h2.util, w, h);
-                const mem = areaPath(h2.mem, w, h);
-                html += '<div class="nvtop-graph">' +
-                    '<div class="nvtop-graph-legend"><span class="gpu">GPU' + g.index + ' %</span><span class="mem">MEM %</span></div>' +
-                    '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
-                    (util ? '<path class="area-gpu" d="' + util.fill + '"/><path class="line-gpu" d="' + util.line + '"/>' : '') +
+                const hh = histories[g.index] || {util: [], mem: []};
+                const util = areaPath(hh.util, w, h);
+                const mem = areaPath(hh.mem, w, h);
+                // Build the SVG via DOMParser so paths land in the SVG namespace and
+                // actually paint (jQuery string-append can create HTML-namespaced nodes).
+                const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
                     (mem ? '<path class="area-mem" d="' + mem.fill + '"/><path class="line-mem" d="' + mem.line + '"/>' : '') +
-                    '</svg></div>';
+                    (util ? '<path class="area-gpu" d="' + util.fill + '"/><path class="line-gpu" d="' + util.line + '"/>' : '') +
+                    '</svg>';
+                const $g = $('<div class="nvtop-graph"><div class="nvtop-graph-legend">' +
+                    '<span class="gpu">GPU' + g.index + ' %</span><span class="mem">MEM %</span></div></div>');
+                const node = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
+                $g.append(node);
+                $wrap.append($g);
             });
-            return html + '</div>';
+            return $wrap;
         }
 
         function renderProcs(procs) {
-            if (!procs || !procs.length) return '';
+            if (!procs || !procs.length) return null;
             const sorted = procs.slice().sort(function (a, b) { return b.memory - a.memory; });
             let html = '<div class="nvtop-procs"><table><thead><tr>' +
-                '<th>DEV</th><th>TYPE</th><th>PID</th><th class="num">MEM</th><th>PROCESS</th>' +
+                '<th>PID</th><th>DEV</th><th>TYPE</th><th class="num">MEM</th><th>PROCESS</th>' +
                 '</tr></thead><tbody>';
             sorted.forEach(function (p) {
-                html += '<tr><td>' + p.gpuIndex + '</td><td>' + p.type + '</td><td>' + p.pid +
+                html += '<tr><td>' + p.pid + '</td><td>' + p.gpuIndex + '</td><td>' + p.type +
                     '</td><td class="num">' + p.memory + 'M</td><td class="proc-name"></td></tr>';
             });
             html += '</tbody></table></div>';
@@ -860,9 +868,9 @@ $(document).ready(function () {
                 return;
             }
             accumulate(stats);
-            $list.append(renderGpuCards(stats));                 // 1x+: device info
-            if (nvtopSpan >= 3) $list.append(renderGraphs(stats)); // 3x: history graphs
-            if (nvtopSpan >= 2) {                                 // 2x+: process table
+            $list.append(renderGpuCards(stats));
+            if (nvtopSpan >= 3) $list.append(renderGraphs(stats));
+            if (nvtopSpan >= 2) {
                 const $procs = renderProcs(procs);
                 if ($procs) $list.append($procs);
             }

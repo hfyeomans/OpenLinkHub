@@ -651,42 +651,69 @@ code {
     display: block;
 }
 
-/* GPU Monitor (nvtop) widget */
+
+/* GPU Monitor (nvtop) widget — span-tiered font sizing */
+#xeneon-nvtop { --nv-fs: 12px; }
+#xeneon-nvtop[data-span="1"] { --nv-fs: 15px; }
+#xeneon-nvtop[data-span="2"] { --nv-fs: 12.5px; }
+#xeneon-nvtop[data-span="3"] { --nv-fs: 11px; }
 .nvtop-panel .card-body {
     overflow-y: auto !important;
+    color: #e7e9ee;
 }
 .nvtop-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     height: 100%;
+    font-size: var(--nv-fs);
+}
+.nvtop-gpus {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 0 0 auto;
 }
 .nvtop-gpu {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
     padding: 8px 10px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: 10px;
 }
-.nvtop-head {
+.nvtop-devline {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 8px;
+    gap: 10px;
 }
 .nvtop-name {
-    font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.nvtop-temp {
-    font-size: 13px;
-    font-weight: 700;
+.nvtop-pcie {
+    font-weight: 600;
+    opacity: 0.7;
+    white-space: nowrap;
     flex: 0 0 auto;
+    font-size: 0.85em;
+}
+.nvtop-statline {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.nvtop-stat i {
+    font-style: normal;
+    font-weight: 600;
+    opacity: 0.55;
+    margin-right: 2px;
 }
 .nvtop-metric {
     display: flex;
@@ -694,16 +721,16 @@ code {
     gap: 8px;
 }
 .nvtop-label {
-    font-size: 10px;
+    font-weight: 700;
     opacity: 0.6;
-    width: 28px;
+    width: 2.6em;
     flex: 0 0 auto;
 }
 .nvtop-bar {
     flex: 1 1 auto;
-    height: 8px;
+    height: 0.7em;
     min-width: 0;
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.08);
     border-radius: 999px;
     overflow: hidden;
 }
@@ -714,97 +741,14 @@ code {
     transition: width 0.4s ease;
 }
 .nvtop-val {
-    font-size: 10px;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     flex: 0 0 auto;
-    min-width: 84px;
-    text-align: right;
-    opacity: 0.85;
-}
-.nvtop-spark {
-    width: 60px;
-    height: 20px;
-    flex: 0 0 auto;
-}
-.nvtop-spark polyline {
-    fill: none;
-    stroke: #38bdf8;
-    stroke-width: 1.5;
-    vector-effect: non-scaling-stroke;
-}
-.nvtop-footer {
-    display: flex;
-    justify-content: space-between;
-    gap: 6px;
-    font-size: 10px;
-    opacity: 0.7;
-    font-variant-numeric: tabular-nums;
-}
-.nvtop-empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    font-size: 12px;
-    opacity: 0.6;
-}
-
-/* GPU Monitor v2: dense cards + process table */
-.nvtop-list {
-    gap: 8px;
-}
-.nvtop-gpus {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    flex: 0 0 auto;
-}
-.nvtop-gpu {
-    gap: 4px;
-    padding: 6px 8px;
-}
-.nvtop-name {
-    font-size: 10px;
-}
-.nvtop-procs {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-    padding-top: 4px;
-}
-.nvtop-procs table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 10px;
-    font-variant-numeric: tabular-nums;
-}
-.nvtop-procs th {
-    text-align: left;
-    font-weight: 600;
-    opacity: 0.5;
-    padding: 2px 6px 2px 0;
-    position: sticky;
-    top: 0;
-    background: var(--surface, #16181d);
-}
-.nvtop-procs td {
-    padding: 1px 6px 1px 0;
-    opacity: 0.85;
-    white-space: nowrap;
-}
-.nvtop-procs .num {
+    min-width: 6.5em;
     text-align: right;
 }
-.nvtop-procs .proc-name {
-    width: 99%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 0;
-}
-
-/* GPU Monitor history graphs (3x tier) */
+/* history graphs (3x) */
 .nvtop-graphs {
     display: flex;
     flex-direction: column;
@@ -813,29 +757,72 @@ code {
 }
 .nvtop-graph {
     position: relative;
-    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.02);
-    padding: 4px;
+    padding: 3px;
 }
 .nvtop-graph svg {
     display: block;
     width: 100%;
-    height: 90px;
+    height: 84px;
 }
-.nvtop-graph .line-gpu { fill: none; stroke: #38bdf8; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.nvtop-graph .area-gpu { fill: rgba(56, 189, 248, 0.15); stroke: none; }
-.nvtop-graph .line-mem { fill: none; stroke: #a78bfa; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.nvtop-graph .area-mem { fill: rgba(167, 139, 250, 0.12); stroke: none; }
+.nvtop-graph .line-gpu { fill: none; stroke: #38bdf8; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.nvtop-graph .area-gpu { fill: rgba(56, 189, 248, 0.20); stroke: none; }
+.nvtop-graph .line-mem { fill: none; stroke: #a78bfa; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.nvtop-graph .area-mem { fill: rgba(167, 139, 250, 0.15); stroke: none; }
 .nvtop-graph-legend {
     position: absolute;
-    top: 6px;
+    top: 5px;
     left: 8px;
     display: flex;
     gap: 10px;
-    font-size: 9px;
+    font-size: 0.8em;
+    font-weight: 700;
     z-index: 1;
     pointer-events: none;
 }
 .nvtop-graph-legend .gpu { color: #38bdf8; }
 .nvtop-graph-legend .mem { color: #a78bfa; }
+/* process table (2x+) */
+.nvtop-procs {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.10);
+    padding-top: 4px;
+}
+.nvtop-procs table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92em;
+    font-variant-numeric: tabular-nums;
+}
+.nvtop-procs th {
+    text-align: left;
+    font-weight: 700;
+    opacity: 0.55;
+    padding: 2px 8px 3px 0;
+    position: sticky;
+    top: 0;
+    background: #16181d;
+}
+.nvtop-procs td {
+    padding: 2px 8px 2px 0;
+    white-space: nowrap;
+}
+.nvtop-procs .num { text-align: right; }
+.nvtop-procs .proc-name {
+    width: 99%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 0;
+    font-weight: 600;
+}
+.nvtop-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    opacity: 0.6;
+}
