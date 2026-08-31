@@ -746,6 +746,10 @@ $(document).ready(function () {
         const NVTOP_HISTORY = 60;
         const nvtopSpan = parseInt($('#xeneon-nvtop').attr('data-span')) || 1;
         const histories = {};
+        // Latest data from the two poll cadences (fast telemetry, slow extended).
+        let nvtopGpus = [];
+        let nvtopThroughput = {};
+        let nvtopProcs = [];
 
         function nvtopBar(pct, color) {
             const p = Math.max(0, Math.min(100, pct));
@@ -787,11 +791,13 @@ $(document).ready(function () {
             stats.forEach(function (g) {
                 const memPct = g.memoryTotal > 0 ? (g.memoryUsed / g.memoryTotal) * 100 : 0;
                 const pcie = g.pcieGen > 0 ? 'PCIe ' + g.pcieGen + '@' + g.pcieWidth + 'x' : '';
+                const tp = nvtopThroughput[g.index];
+                const io = tp ? ' &#8595;' + tp.rx + ' &#8593;' + tp.tx + ' MB/s' : '';
                 html +=
                     '<div class="nvtop-gpu">' +
                     '<div class="nvtop-devline">' +
                     '<span class="nvtop-name">GPU' + g.index + ' ' + (g.name || '').replace(/NVIDIA\s+/i, '') + '</span>' +
-                    '<span class="nvtop-pcie">' + pcie + ' &#8595;' + g.rxPci + ' &#8593;' + g.txPci + ' MB/s</span>' +
+                    '<span class="nvtop-pcie">' + pcie + io + '</span>' +
                     '</div>' +
                     '<div class="nvtop-statline">' +
                     stat('GPU ', g.clockGraphics + 'MHz') +
@@ -871,32 +877,32 @@ $(document).ready(function () {
             return $frag;
         }
 
-        function renderNvtop(data) {
-            const stats = (data && data.gpus) || [];
-            const procs = (data && data.processes) || [];
+        function renderNvtop() {
             const $list = $('#xeneon-nvtop .nvtop-list');
             $list.empty();
-            if (!stats.length) {
+            if (!nvtopGpus.length) {
                 $list.append($('<div class="nvtop-empty"></div>').text(i18n.t('txtNoGpuData', 'No GPU data')));
                 return;
             }
-            accumulate(stats);
-            $list.append(renderGpuCards(stats));
-            if (nvtopSpan >= 3) $list.append(renderGraphs(stats));
+            $list.append(renderGpuCards(nvtopGpus));
+            if (nvtopSpan >= 3) $list.append(renderGraphs(nvtopGpus));
             if (nvtopSpan >= 2) {
-                const $procs = renderProcs(procs);
+                const $procs = renderProcs(nvtopProcs);
                 if ($procs) $list.append($procs);
             }
         }
 
-        const pollNvtop = function () {
+        // Fast poll: telemetry only (drives bars + graphs). Cheap.
+        const pollTelemetry = function () {
             $.ajax({
                 url: '/api/gpuStats',
                 method: 'GET',
                 dataType: 'json',
                 success: function (response) {
-                    if (response.status === 1 && response.data) {
-                        renderNvtop(response.data);
+                    if (response.status === 1 && response.data && response.data.gpus) {
+                        nvtopGpus = response.data.gpus;
+                        accumulate(nvtopGpus);
+                        renderNvtop();
                     }
                 },
                 error: function () {
@@ -904,7 +910,35 @@ $(document).ready(function () {
                 }
             });
         };
-        pollNvtop();
-        setInterval(pollNvtop, 1500);
+
+        // Slow poll: throughput + process table (only fetched when the widget
+        // actually shows them, i.e. span >= 2). These change slowly.
+        const pollExtended = function () {
+            $.ajax({
+                url: '/api/gpuExtended',
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    if (response.status === 1 && response.data) {
+                        nvtopThroughput = {};
+                        (response.data.throughput || []).forEach(function (t) {
+                            nvtopThroughput[t.index] = {rx: t.rx, tx: t.tx};
+                        });
+                        nvtopProcs = response.data.processes || [];
+                        renderNvtop();
+                    }
+                },
+                error: function () {
+                    console.error('Failed to get GPU extended stats');
+                }
+            });
+        };
+
+        pollTelemetry();
+        setInterval(pollTelemetry, 2000);
+        if (nvtopSpan >= 2) {
+            pollExtended();
+            setInterval(pollExtended, 5000);
+        }
     }
 });

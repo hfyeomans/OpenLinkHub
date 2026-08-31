@@ -90,10 +90,18 @@ type GpuProcess struct {
 	Command  string  `json:"command"` // full command line
 }
 
-// GpuStats bundles per-GPU telemetry with the GPU process table.
-type GpuStats struct {
-	Gpus      []GpuStat    `json:"gpus"`
-	Processes []GpuProcess `json:"processes"`
+// GpuThroughput is per-GPU PCIe RX/TX (MB/s).
+type GpuThroughput struct {
+	Index int `json:"index"`
+	Rx    int `json:"rx"`
+	Tx    int `json:"tx"`
+}
+
+// GpuExtended bundles the slower-changing GPU data (throughput + process table)
+// polled separately from the fast telemetry so the widget stays cheap.
+type GpuExtended struct {
+	Throughput []GpuThroughput `json:"throughput"`
+	Processes  []GpuProcess    `json:"processes"`
 }
 
 type StorageData struct {
@@ -407,21 +415,15 @@ func GetGpuStats() []GpuStat {
 			PcieWidth:     atoi(fields[12]),
 		})
 	}
-
-	// Merge PCIe RX/TX throughput (MB/s) sampled via nvidia-smi dmon.
-	throughput := getGpuThroughput()
-	for i := range stats {
-		if t, ok := throughput[stats[i].Index]; ok {
-			stats[i].RxPci = t[0]
-			stats[i].TxPci = t[1]
-		}
-	}
 	return stats
 }
 
-// getGpuThroughput samples per-GPU PCIe RX/TX (MB/s) via nvidia-smi dmon.
-func getGpuThroughput() map[int][2]int {
-	result := make(map[int][2]int)
+// GetGpuThroughput samples per-GPU PCIe RX/TX (MB/s) via nvidia-smi dmon.
+func GetGpuThroughput() []GpuThroughput {
+	result := make([]GpuThroughput, 0)
+	if !isNvidiaSmiFound {
+		return result
+	}
 	output, err := exec.Command("nvidia-smi", "dmon", "-c", "1", "-s", "t").Output()
 	if err != nil {
 		return result
@@ -442,7 +444,7 @@ func getGpuThroughput() map[int][2]int {
 		}
 		rx, _ := strconv.Atoi(fields[1])
 		tx, _ := strconv.Atoi(fields[2])
-		result[idx] = [2]int{rx, tx}
+		result = append(result, GpuThroughput{Index: idx, Rx: rx, Tx: tx})
 	}
 	return result
 }

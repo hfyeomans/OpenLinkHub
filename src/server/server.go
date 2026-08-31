@@ -204,14 +204,24 @@ func getGpuTemperatureCleanIndex(w http.ResponseWriter, r *http.Request) {
 	resp.Send(w)
 }
 
-// getGpuStats will return per-GPU telemetry and the GPU process table
+// getGpuStats will return fast per-GPU telemetry for the GPU Monitor widget
 func getGpuStats(w http.ResponseWriter, _ *http.Request) {
 	resp := &Response{
 		Code:   http.StatusOK,
 		Status: 1,
-		Data: systeminfo.GpuStats{
-			Gpus:      systeminfo.GetGpuStats(),
-			Processes: systeminfo.GetGpuProcesses(),
+		Data:   map[string]interface{}{"gpus": systeminfo.GetGpuStats()},
+	}
+	resp.Send(w)
+}
+
+// getGpuExtended will return the slower-changing GPU data (throughput + processes)
+func getGpuExtended(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data: systeminfo.GpuExtended{
+			Throughput: systeminfo.GetGpuThroughput(),
+			Processes:  systeminfo.GetGpuProcesses(),
 		},
 	}
 	resp.Send(w)
@@ -2687,6 +2697,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/gpuLoad", http.MethodGet, getGpuLoad)
 	handleFunc(r, "/api/gpuLoad/", http.MethodGet, getGpuLoadIndex)
 	handleFunc(r, "/api/gpuStats", http.MethodGet, getGpuStats)
+	handleFunc(r, "/api/gpuExtended", http.MethodGet, getGpuExtended)
 	handleFunc(r, "/api/xeneon/media", http.MethodGet, getXeneonMedia)
 	handleFunc(r, "/api/xeneon/media/", http.MethodGet, xeneonedge.PerformMediaServe)
 	handleFunc(r, "/api/storageTemp", http.MethodGet, getStorageTemperature)
