@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"github.com/sstallion/go-hid"
 	"os"
+	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -53,6 +55,7 @@ type Widget struct {
 	Name        string  `json:"name"`
 	Template    string  `json:"template"`
 	Columns     []int   `json:"columns"`
+	GpuIndex    int     `json:"gpuIndex"`
 	City        string  `json:"city"`
 	Country     string  `json:"country"`
 	Latitude    float64 `json:"latitude"`
@@ -67,7 +70,8 @@ type Widget struct {
 }
 
 var (
-	pwd = ""
+	pwd           = ""
+	hexColorRegex = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
 
 func Init(vendorId, productId uint16, _, path string) *common.Device {
@@ -193,6 +197,194 @@ func (d *Device) ChangeDeviceProfile(profileName string) uint8 {
 		return 1
 	}
 	return 0
+}
+
+// DeleteDeviceProfile will delete device profile
+func (d *Device) DeleteDeviceProfile(profileName string) uint8 {
+	profile, ok := d.UserProfiles[profileName]
+	if !ok {
+		return 0
+	}
+
+	if !common.IsValidExtension(profile.Path, ".json") {
+		return 0
+	}
+
+	if profile.Active {
+		return 2
+	}
+
+	if err := os.Remove(profile.Path); err != nil {
+		return 3
+	}
+
+	delete(d.UserProfiles, profileName)
+
+	return 1
+}
+
+// areaColumn will return the kiosk column for a widget area
+func areaColumn(areaId int) int {
+	switch {
+	case areaId >= 1 && areaId <= 2:
+		return 1
+	case areaId >= 3 && areaId <= 8:
+		return 2
+	case areaId >= 9 && areaId <= 11:
+		return 3
+	}
+	return 0
+}
+
+// getProfileWidget will return a widget from the active device profile
+func (d *Device) getProfileWidget(widgetId int) *Widget {
+	if d.DeviceProfile == nil {
+		return nil
+	}
+	for i := range d.DeviceProfile.Widgets {
+		if d.DeviceProfile.Widgets[i].Id == widgetId {
+			return &d.DeviceProfile.Widgets[i]
+		}
+	}
+	return nil
+}
+
+// UpdateWidgetArea will assign a widget to a widget area. widgetId 0 clears the area.
+func (d *Device) UpdateWidgetArea(areaId int, widgetId int) uint8 {
+	if d.DeviceProfile == nil {
+		return 0
+	}
+
+	if _, ok := d.DeviceProfile.WidgetAreas[areaId]; !ok {
+		return 0
+	}
+
+	if widgetId == 0 {
+		d.DeviceProfile.WidgetAreas[areaId] = WidgetArea{}
+		d.saveDeviceProfile()
+		return 1
+	}
+
+	widget := d.getProfileWidget(widgetId)
+	if widget == nil {
+		return 0
+	}
+
+	if !slices.Contains(widget.Columns, areaColumn(areaId)) {
+		return 0
+	}
+
+	// Widget can be placed only once, clear its previous area
+	for key, area := range d.DeviceProfile.WidgetAreas {
+		if area.WidgetId == widgetId && key != areaId {
+			d.DeviceProfile.WidgetAreas[key] = WidgetArea{}
+		}
+	}
+
+	d.DeviceProfile.WidgetAreas[areaId] = WidgetArea{WidgetId: widgetId, Widget: widget}
+	d.saveDeviceProfile()
+	return 1
+}
+
+// UpdateWidgetSettings will update widget configuration from a JSON payload
+func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
+	widget := d.getProfileWidget(widgetId)
+	if widget == nil {
+		return 0
+	}
+
+	settings := &struct {
+		City        *string  `json:"city"`
+		Country     *string  `json:"country"`
+		Latitude    *float64 `json:"latitude"`
+		Longitude   *float64 `json:"longitude"`
+		AutoWeather *bool    `json:"autoWeather"`
+		DataColor   *string  `json:"dataColor"`
+		Max         *int     `json:"max"`
+		HeaderText  *string  `json:"headerText"`
+		Unit        *string  `json:"unit"`
+		TextColor   *string  `json:"textColor"`
+	}{}
+
+	if err := json.Unmarshal([]byte(data), settings); err != nil {
+		logger.Log(logger.Fields{"error": err, "serial": d.Serial}).Warn("Unable to decode widget settings")
+		return 0
+	}
+
+	if settings.City != nil {
+		city := strings.TrimSpace(*settings.City)
+		if len(city) < 1 || len(city) > 64 {
+			return 0
+		}
+		widget.City = city
+	}
+	if settings.Country != nil {
+		country := strings.TrimSpace(*settings.Country)
+		if len(country) > 64 {
+			return 0
+		}
+		widget.Country = country
+	}
+	if settings.Latitude != nil {
+		if *settings.Latitude < -90 || *settings.Latitude > 90 {
+			return 0
+		}
+		widget.Latitude = *settings.Latitude
+	}
+	if settings.Longitude != nil {
+		if *settings.Longitude < -180 || *settings.Longitude > 180 {
+			return 0
+		}
+		widget.Longitude = *settings.Longitude
+	}
+	if settings.AutoWeather != nil {
+		widget.AutoWeather = *settings.AutoWeather
+	}
+	if settings.City != nil || settings.Latitude != nil || settings.Longitude != nil {
+		widget.Source = "Configured location"
+	}
+	if settings.DataColor != nil {
+		if !hexColorRegex.MatchString(*settings.DataColor) {
+			return 0
+		}
+		widget.DataColor = *settings.DataColor
+	}
+	if settings.TextColor != nil {
+		if !hexColorRegex.MatchString(*settings.TextColor) {
+			return 0
+		}
+		widget.TextColor = *settings.TextColor
+	}
+	if settings.Max != nil {
+		if *settings.Max < 1 || *settings.Max > 1000 {
+			return 0
+		}
+		widget.Max = *settings.Max
+	}
+	if settings.HeaderText != nil {
+		headerText := strings.TrimSpace(*settings.HeaderText)
+		if len(headerText) > 32 {
+			return 0
+		}
+		widget.HeaderText = headerText
+	}
+	if settings.Unit != nil {
+		unit := strings.TrimSpace(*settings.Unit)
+		if len(unit) > 8 {
+			return 0
+		}
+		widget.Unit = unit
+	}
+
+	// Refresh area snapshots pointing to this widget
+	for key, area := range d.DeviceProfile.WidgetAreas {
+		if area.WidgetId == widgetId {
+			d.DeviceProfile.WidgetAreas[key] = WidgetArea{WidgetId: widgetId, Widget: widget}
+		}
+	}
+
+	d.saveDeviceProfile()
+	return 1
 }
 
 // SaveUserProfile will generate a new user profile configuration and save it to a file
@@ -404,6 +596,7 @@ func (d *Device) loadDeviceProfiles() {
 		}
 
 		if pf.Serial == d.Serial {
+			d.mergeCatalogWidgets(pf)
 			if fileName == d.Serial {
 				profileList["default"] = pf
 			} else {
@@ -415,6 +608,23 @@ func (d *Device) loadDeviceProfiles() {
 	}
 	d.UserProfiles = profileList
 	d.getDeviceProfile()
+}
+
+// mergeCatalogWidgets will append catalog widgets missing from a stored profile,
+// so profiles saved before a catalog update pick up newly added widgets
+func (d *Device) mergeCatalogWidgets(pf *DeviceProfile) {
+	for _, widget := range d.Widgets {
+		found := false
+		for i := range pf.Widgets {
+			if pf.Widgets[i].Id == widget.Id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			pf.Widgets = append(pf.Widgets, widget)
+		}
+	}
 }
 
 // getDeviceProfile will load persistent device configuration

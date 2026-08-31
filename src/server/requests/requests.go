@@ -149,6 +149,8 @@ type Payload struct {
 	PerfAltTab                    bool                  `json:"perf_altTab"`
 	PerfAltF4                     bool                  `json:"perf_altF4"`
 	Save                          bool                  `json:"save"`
+	WidgetId                      int                   `json:"widgetId"`
+	WidgetData                    string                `json:"widgetData"`
 	SupportedDevices              map[uint16]bool       `json:"supportedDevices"`
 	VibrationValue                uint8                 `json:"vibrationValue"`
 	VibrationModule               uint8                 `json:"vibrationModule"`
@@ -2535,6 +2537,94 @@ func ProcessDeleteUserProfile(r *http.Request) *Payload {
 		}
 	}
 	return &Payload{Message: language.GetValue("txtUnableToDeleteProfile"), Code: http.StatusOK, Status: 0}
+}
+
+// ProcessXeneonWidgetArea will process POST request from a client for widget area assignment
+func ProcessXeneonWidgetArea(r *http.Request) *Payload {
+	req := &Payload{}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		logger.Log(map[string]interface{}{"error": err}).Error("Unable to decode JSON")
+		return &Payload{
+			Message: language.GetValue("txtUnableToValidateRequest"),
+			Code:    http.StatusOK,
+			Status:  0,
+		}
+	}
+
+	if len(req.DeviceId) == 0 {
+		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
+	}
+
+	if !common.AlphanumericDashRegex.MatchString(req.DeviceId) {
+		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
+	}
+
+	if devices.GetDevice(req.DeviceId) == nil {
+		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
+	}
+
+	if req.AreaId < 1 || req.WidgetId < 0 {
+		return &Payload{Message: language.GetValue("txtUnableToUpdateWidgetArea"), Code: http.StatusOK, Status: 0}
+	}
+
+	results := devices.CallDeviceMethod(
+		req.DeviceId,
+		"UpdateWidgetArea",
+		req.AreaId,
+		req.WidgetId,
+	)
+
+	if len(results) > 0 {
+		if results[0].Uint() == 1 {
+			return &Payload{Message: language.GetValue("txtWidgetAreaUpdated"), Code: http.StatusOK, Status: 1}
+		}
+	}
+	return &Payload{Message: language.GetValue("txtUnableToUpdateWidgetArea"), Code: http.StatusOK, Status: 0}
+}
+
+// ProcessXeneonWidgetSettings will process PUT request from a client for widget configuration
+func ProcessXeneonWidgetSettings(r *http.Request) *Payload {
+	req := &Payload{}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		logger.Log(map[string]interface{}{"error": err}).Error("Unable to decode JSON")
+		return &Payload{
+			Message: language.GetValue("txtUnableToValidateRequest"),
+			Code:    http.StatusOK,
+			Status:  0,
+		}
+	}
+
+	if len(req.DeviceId) == 0 {
+		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
+	}
+
+	if !common.AlphanumericDashRegex.MatchString(req.DeviceId) {
+		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
+	}
+
+	if devices.GetDevice(req.DeviceId) == nil {
+		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
+	}
+
+	if req.WidgetId < 1 || len(req.WidgetData) == 0 || len(req.WidgetData) > 1024 {
+		return &Payload{Message: language.GetValue("txtUnableToUpdateWidget"), Code: http.StatusOK, Status: 0}
+	}
+
+	results := devices.CallDeviceMethod(
+		req.DeviceId,
+		"UpdateWidgetSettings",
+		req.WidgetId,
+		req.WidgetData,
+	)
+
+	if len(results) > 0 {
+		if results[0].Uint() == 1 {
+			return &Payload{Message: language.GetValue("txtWidgetUpdated"), Code: http.StatusOK, Status: 1}
+		}
+	}
+	return &Payload{Message: language.GetValue("txtUnableToUpdateWidget"), Code: http.StatusOK, Status: 0}
 }
 
 // ProcessBrightnessChange will process POST request from a client for device brightness change

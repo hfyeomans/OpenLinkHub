@@ -63,6 +63,7 @@
       "name": "GPU Temp",
       "template": "xeneon-gpu-temp",
       "columns": [2],
+      "gpuIndex": 0,
       "dataColor": "#FFC107",
       "max": 85,
       "headerText": "GPU Temperature",
@@ -74,11 +75,42 @@
       "name": "GPU Load",
       "template": "xeneon-gpu-load",
       "columns": [2],
+      "gpuIndex": 0,
       "dataColor": "#38bdf8",
       "max": 100,
       "headerText": "GPU Usage",
       "unit": "%",
       "textColor": "#a1a1a1"
+    },
+    {
+      "id": 10,
+      "name": "GPU 2 Temp",
+      "template": "xeneon-gpu-temp",
+      "columns": [2],
+      "gpuIndex": 1,
+      "dataColor": "#fb7185",
+      "max": 85,
+      "headerText": "GPU 2 Temperature",
+      "unit": "°C",
+      "textColor": "#a1a1a1"
+    },
+    {
+      "id": 11,
+      "name": "GPU 2 Load",
+      "template": "xeneon-gpu-load",
+      "columns": [2],
+      "gpuIndex": 1,
+      "dataColor": "#4ade80",
+      "max": 100,
+      "headerText": "GPU 2 Usage",
+      "unit": "%",
+      "textColor": "#a1a1a1"
+    },
+    {
+      "id": 12,
+      "name": "PSU Status",
+      "template": "xeneon-psu-status",
+      "columns": [1,3]
     }
   ]
 }

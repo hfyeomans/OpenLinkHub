@@ -45,12 +45,16 @@ $(document).ready(function () {
     // System weather
     if ($('#xeneon-weather').length) {
         const WEATHER_REFRESH_MS = 10 * 60 * 1000;
+        const $weatherPanel = $('#xeneon-weather');
+        const cfgLat = parseFloat($weatherPanel.attr('data-latitude'));
+        const cfgLon = parseFloat($weatherPanel.attr('data-longitude'));
+        const autoWeather = $weatherPanel.attr('data-autoweather') === 'true';
         const FALLBACK_LOCATION = {
-            name: 'New York',
-            country: 'United States',
-            latitude: 40.7128,
-            longitude: -74.0060,
-            source: 'Fallback city'
+            name: $weatherPanel.attr('data-city') || 'New York',
+            country: $weatherPanel.attr('data-country') || 'United States',
+            latitude: isNaN(cfgLat) ? 40.7128 : cfgLat,
+            longitude: isNaN(cfgLon) ? -74.0060 : cfgLon,
+            source: $weatherPanel.attr('data-source') || 'Fallback city'
         };
 
         function weatherCodeToLabel(code, isDay) {
@@ -100,7 +104,7 @@ $(document).ready(function () {
         function resolveLocation() {
             const dfd = $.Deferred();
 
-            if (!navigator.geolocation) {
+            if (!autoWeather || !navigator.geolocation) {
                 dfd.resolve(FALLBACK_LOCATION);
                 return dfd.promise();
             }
@@ -571,16 +575,17 @@ $(document).ready(function () {
         }, 1000);
     }
 
-    // GPU Temp
-    if ($('#xeneon-gpu-temp').length) {
-        const $widget = $("#xeneon-gpu-temp");
+    // GPU Temp (one widget per GPU, index via data-gpu-index)
+    $('.gpu-temp-widget').each(function () {
+        const $widget = $(this);
+        const gpuIndex = parseInt($widget.data('gpu-index')) || 0;
         setInterval(function () {
             $.ajax({
-                url: '/api/gpuTemp/clean',
+                url: '/api/gpuTemp/clean/' + gpuIndex,
                 method: 'GET',
                 dataType: 'json',
                 success: function (response) {
-                    if (response.status === 1 && response.data) {
+                    if (response.status === 1 && response.data != null) {
                         updateRing($widget, response.data, $widget.data('max'));
                         setThermalValue($widget, response.data, $widget.data('max'));
                     }
@@ -590,18 +595,19 @@ $(document).ready(function () {
                 }
             });
         }, 1000);
-    }
+    });
 
-    // GPU Load
-    if ($('#xeneon-gpu-load').length) {
-        const $widget = $("#xeneon-gpu-load");
+    // GPU Load (one widget per GPU, index via data-gpu-index)
+    $('.gpu-load-widget').each(function () {
+        const $widget = $(this);
+        const gpuIndex = parseInt($widget.data('gpu-index')) || 0;
         setInterval(function () {
             $.ajax({
-                url: '/api/gpuLoad',
+                url: '/api/gpuLoad/' + gpuIndex,
                 method: 'GET',
                 dataType: 'json',
                 success: function (response) {
-                    if (response.status === 1 && response.data) {
+                    if (response.status === 1 && response.data != null) {
                         updateRing($widget, response.data, $widget.data('max'));
                         setThermalValue($widget, response.data, $widget.data('max'));
                     }
@@ -611,5 +617,57 @@ $(document).ready(function () {
                 }
             });
         }, 1000);
+    });
+
+    // PSU status
+    if ($('#xeneon-psu-status').length) {
+        const psuSerial = $('#xeneon-psu-status').attr('data-serial');
+
+        function updatePsuStatus(device) {
+            const $list = $('#xeneon-psu-status .metrics-list');
+            const rows = [];
+
+            $.each(device.devices || {}, function (channelId, channel) {
+                if (channel.MainPSU) {
+                    rows.push(['Power', Math.round(Number(channel.watts) || 0) + ' W']);
+                    if (channel.psuTemperatureString) {
+                        rows.push(['PSU Temp', channel.psuTemperatureString]);
+                    }
+                    if (channel.vrmTemperatureString) {
+                        rows.push(['VRM Temp', channel.vrmTemperatureString]);
+                    }
+                } else if (channel.HasSpeed) {
+                    rows.push(['Fan', (Number(channel.rpm) || 0) + ' RPM']);
+                }
+            });
+
+            $list.empty();
+            $.each(rows, function (_, row) {
+                const $row = $('<div class="metric-row"><span class="name"></span><span class="metric-value"></span></div>');
+                $row.find('.name').text(row[0]);
+                $row.find('.metric-value').text(row[1]);
+                $list.append($row);
+            });
+        }
+
+        if (psuSerial) {
+            const pollPsu = function () {
+                $.ajax({
+                    url: '/api/devices/' + psuSerial,
+                    method: 'GET',
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.device) {
+                            updatePsuStatus(response.device);
+                        }
+                    },
+                    error: function () {
+                        console.error('Failed to get PSU data');
+                    }
+                });
+            };
+            pollPsu();
+            setInterval(pollPsu, 2000);
+        }
     }
 });

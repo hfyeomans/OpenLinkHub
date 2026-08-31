@@ -162,6 +162,62 @@ func getGpuTemperatureClean(w http.ResponseWriter, _ *http.Request) {
 	resp.Send(w)
 }
 
+// getGpuIndexVar will parse and validate a gpu index path variable
+func getGpuIndexVar(path string, r *http.Request) (int, bool) {
+	value, valid := getVar(path, r)
+	if !valid {
+		return 0, false
+	}
+	index, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, false
+	}
+	if _, ok := systeminfo.GetInfo().GPU[index]; !ok {
+		return 0, false
+	}
+	return index, true
+}
+
+// getGpuTemperatureCleanIndex will return gpu temperature in float value for a specific gpu
+func getGpuTemperatureCleanIndex(w http.ResponseWriter, r *http.Request) {
+	index, valid := getGpuIndexVar("/api/gpuTemp/clean/", r)
+	if !valid {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtUnableToValidateRequest"),
+		}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   temperatures.GetGpuTemperatureIndex(index),
+	}
+	resp.Send(w)
+}
+
+// getGpuLoadIndex will return gpu utilization for a specific gpu
+func getGpuLoadIndex(w http.ResponseWriter, r *http.Request) {
+	index, valid := getGpuIndexVar("/api/gpuLoad/", r)
+	if !valid {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtUnableToValidateRequest"),
+		}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   systeminfo.GetGPUUtilizationIndex(index),
+	}
+	resp.Send(w)
+}
+
 // getStorageTemperature will return current storage temperature
 func getStorageTemperature(w http.ResponseWriter, _ *http.Request) {
 	resp := &Response{
@@ -1083,6 +1139,28 @@ func changeUserProfile(w http.ResponseWriter, r *http.Request) {
 // deleteUserProfile handles user profile deletion
 func deleteUserProfile(w http.ResponseWriter, r *http.Request) {
 	request := requests.ProcessDeleteUserProfile(r)
+	resp := &Response{
+		Code:    request.Code,
+		Status:  request.Status,
+		Message: request.Message,
+	}
+	resp.Send(w)
+}
+
+// updateXeneonWidgetArea handles widget area assignment
+func updateXeneonWidgetArea(w http.ResponseWriter, r *http.Request) {
+	request := requests.ProcessXeneonWidgetArea(r)
+	resp := &Response{
+		Code:    request.Code,
+		Status:  request.Status,
+		Message: request.Message,
+	}
+	resp.Send(w)
+}
+
+// updateXeneonWidget handles widget configuration change
+func updateXeneonWidget(w http.ResponseWriter, r *http.Request) {
+	request := requests.ProcessXeneonWidgetSettings(r)
 	resp := &Response{
 		Code:    request.Code,
 		Status:  request.Status,
@@ -2547,7 +2625,9 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/gpuTemp", http.MethodGet, getGpuTemperature)
 	handleFunc(r, "/api/gpuTemps", http.MethodGet, getGpuTemperatures)
 	handleFunc(r, "/api/gpuTemp/clean", http.MethodGet, getGpuTemperatureClean)
+	handleFunc(r, "/api/gpuTemp/clean/", http.MethodGet, getGpuTemperatureCleanIndex)
 	handleFunc(r, "/api/gpuLoad", http.MethodGet, getGpuLoad)
+	handleFunc(r, "/api/gpuLoad/", http.MethodGet, getGpuLoadIndex)
 	handleFunc(r, "/api/storageTemp", http.MethodGet, getStorageTemperature)
 	handleFunc(r, "/api/batteryStats", http.MethodGet, getBatteryStats)
 	handleFunc(r, "/api/devices/", http.MethodGet, getDevices)
@@ -2684,6 +2764,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/audio/outputDevice", http.MethodPost, setAudioOutputDeviceSettings)
 	handleFunc(r, "/api/devices/channel", http.MethodPost, getChannelData)
 	handleFunc(r, "/api/display/update", http.MethodPost, updateDisplayData)
+	handleFunc(r, "/api/xeneon/widgetArea", http.MethodPost, updateXeneonWidgetArea)
 
 	// PUT
 	handleFunc(r, "/api/temperatures/update", http.MethodPut, updateTemperatureProfile)
@@ -2693,6 +2774,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/keyboard/profile/new", http.MethodPut, saveDeviceProfile)
 	handleFunc(r, "/api/macro/new", http.MethodPut, newMacroProfile)
 	handleFunc(r, "/api/color/change", http.MethodPut, updateRgbProfile)
+	handleFunc(r, "/api/xeneon/widget", http.MethodPut, updateXeneonWidget)
 
 	// DELETE
 	handleFunc(r, "/api/keyboard/profile/delete", http.MethodDelete, deleteKeyboardProfile)
@@ -2719,7 +2801,7 @@ func setRoutes() http.Handler {
 		handleFunc(r, "/macros", http.MethodGet, uiMacrosOverview)
 		handleFunc(r, "/lcd", http.MethodGet, uiLcdOverview)
 		handleFunc(r, "/settings", http.MethodGet, uiSettings)
-		//handleFunc(r, "/xeneon", http.MethodGet, uiXeneon)
+		handleFunc(r, "/xeneon", http.MethodGet, uiXeneon)
 	}
 	return r
 }

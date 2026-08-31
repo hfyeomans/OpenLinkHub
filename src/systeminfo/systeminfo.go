@@ -509,3 +509,18 @@ func GetGPUUtilization() int {
 	}
 	return utilization
 }
+
+// GetGPUUtilizationIndex will return gpu utilization for a specific gpu index
+func GetGPUUtilizationIndex(index int) int {
+	if info.GPU != nil {
+		if gpu, ok := info.GPU[index]; ok {
+			if strings.Contains(strings.ToLower(gpu.Model), "nvidia") {
+				// NVIDIA
+				return getNVIDIAUtilization(index)
+			}
+			// AMD
+			return int(getAMDUtilization())
+		}
+	}
+	return 0
+}

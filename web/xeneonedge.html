@@ -75,12 +75,27 @@
                             <div class="settings-list">
                                 <!-- Widgets -->
                                 {{ range $key, $widget := $deviceProfile.Widgets }}
+                                {{ if or $widget.City $widget.DataColor }}
                                 <div class="settings-row">
                                     <span class="settings-label text-ellipsis">{{ $widget.Name }}</span>
                                     <label>
-                                        <button class="system-button center configureWidget" data-info="{{ $widget.Id }}">{{ $txtConfigure }}</button>
+                                        <button class="system-button center configureWidget"
+                                                data-info="{{ $widget.Id }}"
+                                                data-name="{{ $widget.Name }}"
+                                                data-template="{{ $widget.Template }}"
+                                                data-city="{{ $widget.City }}"
+                                                data-country="{{ $widget.Country }}"
+                                                data-latitude="{{ $widget.Latitude }}"
+                                                data-longitude="{{ $widget.Longitude }}"
+                                                data-autoweather="{{ $widget.AutoWeather }}"
+                                                data-datacolor="{{ $widget.DataColor }}"
+                                                data-max="{{ $widget.Max }}"
+                                                data-headertext="{{ $widget.HeaderText }}"
+                                                data-unit="{{ $widget.Unit }}"
+                                                data-textcolor="{{ $widget.TextColor }}">{{ $txtConfigure }}</button>
                                     </label>
                                 </div>
+                                {{ end }}
                                 {{ end }}
                             </div>
                         </div>
@@ -105,19 +120,20 @@
 
                                 <div class="col-md-{{ $col }}">
                                     {{ if ne $area 0 }}
+                                    {{ $assigned := (index $deviceProfile.WidgetAreas $area).WidgetId }}
+                                    {{ $wantCol := 3 }}
+                                    {{ if eq $col 2 }}{{ $wantCol = 2 }}{{ else if le $area 2 }}{{ $wantCol = 1 }}{{ end }}
                                     <div class="card p-3 xeneon-edge-panel d-flex justify-content-center align-items-center" style="min-height: 120px;">
                                         <div class="d-flex flex-column align-items-center gap-2">
                                             <div class="d-flex gap-2 align-items-center">
                                                 <select class="form-select system-select auto-width widget-area-select" data-area="{{ $area }}">
-                                                    <option value="0">None</option>
+                                                    <option value="0"{{ if eq $assigned 0 }} selected{{ end }}>{{ $root.Lang "txtNone" }}</option>
 
-                                                    {{ range $key, $widget := $deviceProfile.WidgetAreas }}
-                                                    {{ if $widget.Widget }}
-                                                    {{ if eq $key $area }}
-                                                    <option value="{{ $key }}" selected>{{ $widget.Widget.Name }}</option>
-                                                    {{ else }}
-                                                    <option value="{{ $key }}">{{ $widget.Widget.Name }}</option>
-                                                    {{ end }}
+                                                    {{ range $widget := $deviceProfile.Widgets }}
+                                                    {{ $fits := false }}
+                                                    {{ range $c := $widget.Columns }}{{ if eq $c $wantCol }}{{ $fits = true }}{{ end }}{{ end }}
+                                                    {{ if $fits }}
+                                                    <option value="{{ $widget.Id }}"{{ if eq $widget.Id $assigned }} selected{{ end }}>{{ $widget.Name }}</option>
                                                     {{ end }}
                                                     {{ end }}
                                                 </select>

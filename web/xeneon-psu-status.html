@@ -1,0 +1,23 @@
+{{ define "xeneon-psu-status" }}
+{{ $root := .Root }}
+{{ $widgetArea := .WidgetArea }}
+{{ $widget := $widgetArea.Widget }}
+{{ $psuSerial := "" }}
+{{ $psuName := "" }}
+{{ range $key, $dev := $root.Devices }}
+{{ if eq (printf "%d" $dev.ProductType) "501" }}
+{{ $psuSerial = $dev.Serial }}
+{{ $psuName = $dev.Product }}
+{{ end }}
+{{ end }}
+<div class="edge-panel compact" id="xeneon-psu-status" data-serial="{{ $psuSerial }}">
+    <div class="card system-card">
+        <div class="card-body">
+            <div class="metric-row">
+                <span class="name">{{ if $psuName }}{{ $psuName }}{{ else }}PSU{{ end }}</span>
+            </div>
+            <div class="metrics-list"></div>
+        </div>
+    </div>
+</div>
+{{ end }}

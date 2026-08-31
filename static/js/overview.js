@@ -1765,6 +1765,213 @@ $(document).ready(function () {
         });
     });
 
+    $('.widget-area-select').on('change', function () {
+        const deviceId = $("#deviceId").val();
+        const areaId = parseInt($(this).data('area'));
+        const widgetId = parseInt($(this).val());
+
+        if (isNaN(areaId) || isNaN(widgetId)) {
+            return false;
+        }
+
+        const pf = {};
+        pf["deviceId"] = deviceId;
+        pf["areaId"] = areaId;
+        pf["widgetId"] = widgetId;
+
+        const json = JSON.stringify(pf, null, 2);
+
+        $.ajax({
+            url: '/api/xeneon/widgetArea',
+            type: 'POST',
+            data: json,
+            cache: false,
+            success: function(response) {
+                try {
+                    if (response.status === 1) {
+                        location.reload();
+                    } else {
+                        toast.warning(response.message);
+                    }
+                } catch (err) {
+                    toast.warning(response.message);
+                }
+            }
+        });
+    });
+
+    $('.configureWidget').on('click', function () {
+        const $btn = $(this);
+        const widgetId = parseInt($btn.data('info'));
+        const isWeather = String($btn.data('template')) === 'xeneon-weather';
+
+        const weatherRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtAutoWeather', 'Auto location')}</span>
+                <label for="widgetAutoWeather">
+                    <input type="checkbox" id="widgetAutoWeather">
+                </label>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtCity', 'City')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetCity"><input type="text" id="widgetCity" autocomplete="off"></label>
+                </div>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtCountry', 'Country')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetCountry"><input type="text" id="widgetCountry" autocomplete="off"></label>
+                </div>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtLatitude', 'Latitude')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetLatitude"><input type="number" step="any" min="-90" max="90" id="widgetLatitude"></label>
+                </div>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtLongitude', 'Longitude')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetLongitude"><input type="number" step="any" min="-180" max="180" id="widgetLongitude"></label>
+                </div>
+            </div>
+        `;
+
+        const thermalRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtHeaderText', 'Header text')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetHeaderText"><input type="text" id="widgetHeaderText" autocomplete="off"></label>
+                </div>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtMaxValue', 'Maximum value')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetMax"><input type="number" min="1" max="1000" id="widgetMax"></label>
+                </div>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtUnit', 'Unit')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetUnit"><input type="text" id="widgetUnit" autocomplete="off"></label>
+                </div>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtDataColor', 'Data color')}</span>
+                <label for="widgetDataColor">
+                    <input type="color" id="widgetDataColor">
+                </label>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtTextColor', 'Text color')}</span>
+                <label for="widgetTextColor">
+                    <input type="color" id="widgetTextColor">
+                </label>
+            </div>
+        `;
+
+        const modalElement = `
+            <div class="modal fade text-start" id="systemModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-custom modal-600">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"></h5>
+                            <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body modal-title">
+                            <div class="settings-list">
+                                ${isWeather ? weatherRows : thermalRows}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="system-button secondary" type="button" data-bs-dismiss="modal">${i18n.t('txtClose')}</button>
+                            <button class="system-button" type="button" id="btnSaveWidget">${i18n.t('txtSave')}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        const modal = $(modalElement).modal('toggle');
+        modal.find('.modal-header .modal-title').text(i18n.t('txtConfigure') + ' - ' + $btn.data('name'));
+
+        modal.on('hidden.bs.modal', function () {
+            modal.data('bs.modal', null);
+        })
+
+        modal.on('shown.bs.modal', function () {
+            if (isWeather) {
+                modal.find('#widgetCity').val($btn.attr('data-city'));
+                modal.find('#widgetCountry').val($btn.attr('data-country'));
+                modal.find('#widgetLatitude').val($btn.attr('data-latitude'));
+                modal.find('#widgetLongitude').val($btn.attr('data-longitude'));
+                modal.find('#widgetAutoWeather').prop('checked', $btn.attr('data-autoweather') === 'true');
+            } else {
+                modal.find('#widgetHeaderText').val($btn.attr('data-headertext'));
+                modal.find('#widgetMax').val($btn.attr('data-max'));
+                modal.find('#widgetUnit').val($btn.attr('data-unit'));
+                modal.find('#widgetDataColor').val($btn.attr('data-datacolor'));
+                modal.find('#widgetTextColor').val($btn.attr('data-textcolor'));
+            }
+
+            modal.find('#btnSaveWidget').on('click', function () {
+                let widgetData;
+                if (isWeather) {
+                    const city = modal.find('#widgetCity').val().trim();
+                    const latitude = parseFloat(modal.find('#widgetLatitude').val());
+                    const longitude = parseFloat(modal.find('#widgetLongitude').val());
+
+                    if (city.length < 1 || isNaN(latitude) || isNaN(longitude)) {
+                        toast.warning(i18n.t('txtUnableToUpdateWidget', 'Unable to save widget settings'));
+                        return false;
+                    }
+
+                    widgetData = {
+                        city: city,
+                        country: modal.find('#widgetCountry').val().trim(),
+                        latitude: latitude,
+                        longitude: longitude,
+                        autoWeather: modal.find('#widgetAutoWeather').is(':checked')
+                    };
+                } else {
+                    const max = parseInt(modal.find('#widgetMax').val());
+                    if (isNaN(max) || max < 1 || max > 1000) {
+                        toast.warning(i18n.t('txtUnableToUpdateWidget', 'Unable to save widget settings'));
+                        return false;
+                    }
+
+                    widgetData = {
+                        headerText: modal.find('#widgetHeaderText').val().trim(),
+                        max: max,
+                        unit: modal.find('#widgetUnit').val().trim(),
+                        dataColor: modal.find('#widgetDataColor').val(),
+                        textColor: modal.find('#widgetTextColor').val()
+                    };
+                }
+
+                const pf = {
+                    deviceId: $("#deviceId").val(),
+                    widgetId: widgetId,
+                    widgetData: JSON.stringify(widgetData)
+                };
+
+                $.ajax({
+                    url: '/api/xeneon/widget',
+                    type: 'PUT',
+                    data: JSON.stringify(pf),
+                    cache: false,
+                    success: function (response) {
+                        if (response.status === 1) {
+                            location.reload();
+                        } else {
+                            toast.warning(response.message);
+                        }
+                    }
+                });
+            });
+        });
+    });
+
     $('.brightness').on('change', function () {
         const deviceId = $("#deviceId").val();
         const brightness = $(this).val();

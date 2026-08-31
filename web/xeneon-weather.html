@@ -2,7 +2,13 @@
 {{ $root := .Root }}
 {{ $widgetArea := .WidgetArea }}
 {{ $widget := $widgetArea.Widget }}
-<div class="edge-panel" id="xeneon-weather">
+<div class="edge-panel" id="xeneon-weather"
+     data-city="{{ $widget.City }}"
+     data-country="{{ $widget.Country }}"
+     data-latitude="{{ $widget.Latitude }}"
+     data-longitude="{{ $widget.Longitude }}"
+     data-autoweather="{{ $widget.AutoWeather }}"
+     data-source="{{ $widget.Source }}">
     <div class="card system-card">
         <div class="card-body">
             <div class="hero-weather">
