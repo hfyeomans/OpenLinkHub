@@ -633,6 +633,7 @@
     "txtMousePositionY": "Musposition Y",
     "txtInvalidMousePosition": "Ogiltig musposition",
     "txtXeneonEdgeUnavailable": "Xeneon Edge är inte tillgänglig",
+    "txtNoGpuData": "Ingen GPU-data",
     "txtSpan": "Spann",
     "txtFit": "Anpassa",
     "txtFitFill": "Fyll (beskär)",

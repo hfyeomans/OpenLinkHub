@@ -130,6 +130,12 @@
       "name": "Web URL",
       "template": "xeneon-weburl",
       "columns": [1,3]
+    },
+    {
+      "id": 16,
+      "name": "GPU Monitor",
+      "template": "xeneon-nvtop",
+      "columns": [1,3]
     }
   ]
 }

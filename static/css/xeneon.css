@@ -650,3 +650,102 @@ code {
     border: 0;
     display: block;
 }
+
+/* GPU Monitor (nvtop) widget */
+.nvtop-panel .card-body {
+    overflow-y: auto !important;
+}
+.nvtop-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+}
+.nvtop-gpu {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 10px;
+}
+.nvtop-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+}
+.nvtop-name {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.nvtop-temp {
+    font-size: 13px;
+    font-weight: 700;
+    flex: 0 0 auto;
+}
+.nvtop-metric {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.nvtop-label {
+    font-size: 10px;
+    opacity: 0.6;
+    width: 28px;
+    flex: 0 0 auto;
+}
+.nvtop-bar {
+    flex: 1 1 auto;
+    height: 8px;
+    min-width: 0;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.nvtop-bar span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.4s ease;
+}
+.nvtop-val {
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    min-width: 84px;
+    text-align: right;
+    opacity: 0.85;
+}
+.nvtop-spark {
+    width: 60px;
+    height: 20px;
+    flex: 0 0 auto;
+}
+.nvtop-spark polyline {
+    fill: none;
+    stroke: #38bdf8;
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+}
+.nvtop-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 10px;
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+}
+.nvtop-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 12px;
+    opacity: 0.6;
+}

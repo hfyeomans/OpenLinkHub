@@ -56,6 +56,21 @@ type GpuData struct {
 	TemperatureString string
 }
 
+// GpuStat is a full per-GPU telemetry snapshot for the GPU Monitor widget.
+type GpuStat struct {
+	Index         int     `json:"index"`
+	Name          string  `json:"name"`
+	Utilization   int     `json:"utilization"`
+	MemoryUsed    int     `json:"memoryUsed"`
+	MemoryTotal   int     `json:"memoryTotal"`
+	Temperature   int     `json:"temperature"`
+	PowerDraw     float64 `json:"powerDraw"`
+	PowerLimit    float64 `json:"powerLimit"`
+	FanSpeed      int     `json:"fanSpeed"`
+	ClockGraphics int     `json:"clockGraphics"`
+	ClockMemory   int     `json:"clockMemory"`
+}
+
 type StorageData struct {
 	Model             string
 	Temperature       float32
@@ -94,12 +109,13 @@ type AMDGPUModelData struct {
 }
 
 var (
-	info          *SystemInfo
-	prevTotal     = 0
-	prevIdle      = 0
-	gpuIndex      = 0
-	amdsmi        = "amd-smi"
-	isAmdsmiFound = true
+	info             *SystemInfo
+	prevTotal        = 0
+	prevIdle         = 0
+	gpuIndex         = 0
+	amdsmi           = "amd-smi"
+	isAmdsmiFound    = true
+	isNvidiaSmiFound = true
 )
 
 // Init will initialize and store system info
@@ -117,6 +133,7 @@ func Init() {
 
 	_, err = exec.LookPath("nvidia-smi")
 	if err != nil {
+		isNvidiaSmiFound = false
 		logger.Log(logger.Fields{"warn": err}).Warn("nvidia-smi not found")
 	}
 
@@ -317,6 +334,53 @@ func GetAMDGpuModel() string {
 	}
 
 	return gpuInfo.GPUData[0].Asic.MarketName
+}
+
+// GetGpuStats returns full per-GPU telemetry (NVIDIA) for the GPU Monitor widget.
+func GetGpuStats() []GpuStat {
+	stats := make([]GpuStat, 0)
+	if !isNvidiaSmiFound {
+		return stats
+	}
+
+	cmd := exec.Command("nvidia-smi",
+		"--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit,fan.speed,clocks.gr,clocks.mem",
+		"--format=csv,noheader,nounits")
+	output, err := cmd.Output()
+	if err != nil {
+		return stats
+	}
+
+	atoi := func(s string) int {
+		v, _ := strconv.Atoi(strings.TrimSpace(s))
+		return v
+	}
+	atof := func(s string) float64 {
+		v, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+		return v
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		fields := strings.Split(scanner.Text(), ", ")
+		if len(fields) < 11 {
+			continue
+		}
+		stats = append(stats, GpuStat{
+			Index:         atoi(fields[0]),
+			Name:          strings.TrimSpace(fields[1]),
+			Utilization:   atoi(fields[2]),
+			MemoryUsed:    atoi(fields[3]),
+			MemoryTotal:   atoi(fields[4]),
+			Temperature:   atoi(fields[5]),
+			PowerDraw:     atof(fields[6]),
+			PowerLimit:    atof(fields[7]),
+			FanSpeed:      atoi(fields[8]),
+			ClockGraphics: atoi(fields[9]),
+			ClockMemory:   atoi(fields[10]),
+		})
+	}
+	return stats
 }
 
 // GetNVIDIAUtilization will return NVIDIA gpu utilization

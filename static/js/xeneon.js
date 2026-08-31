@@ -740,4 +740,91 @@ $(document).ready(function () {
             }
         });
     }
+
+    // GPU Monitor (nvtop-style)
+    if ($('#xeneon-nvtop').length) {
+        const NVTOP_HISTORY = 48;
+        const histories = {};
+
+        function nvtopBar(pct, color) {
+            const p = Math.max(0, Math.min(100, pct));
+            return '<div class="nvtop-bar"><span style="width:' + p + '%;background:' + color + '"></span></div>';
+        }
+
+        function nvtopSpark(vals) {
+            if (!vals || vals.length < 2) {
+                return '';
+            }
+            const w = 100, h = 24;
+            const step = w / (NVTOP_HISTORY - 1);
+            const pts = vals.map(function (v, i) {
+                const x = (i + (NVTOP_HISTORY - vals.length)) * step;
+                const y = h - (Math.max(0, Math.min(100, v)) / 100) * h;
+                return x.toFixed(1) + ',' + y.toFixed(1);
+            }).join(' ');
+            return '<svg class="nvtop-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+                '<polyline points="' + pts + '"></polyline></svg>';
+        }
+
+        function tempColor(t) {
+            if (t >= 85) return '#f87171';
+            if (t >= 70) return '#fbbf24';
+            return '#4ade80';
+        }
+
+        function gb(mb) {
+            return (mb / 1024).toFixed(1);
+        }
+
+        function renderNvtop(stats) {
+            const $list = $('#xeneon-nvtop .nvtop-list');
+            $list.empty();
+            if (!stats.length) {
+                $list.append($('<div class="nvtop-empty"></div>').text(i18n.t('txtNoGpuData', 'No GPU data')));
+                return;
+            }
+            stats.forEach(function (g) {
+                const hist = histories[g.index] || (histories[g.index] = []);
+                hist.push(g.utilization);
+                if (hist.length > NVTOP_HISTORY) hist.shift();
+
+                const memPct = g.memoryTotal > 0 ? (g.memoryUsed / g.memoryTotal) * 100 : 0;
+                const $card = $(
+                    '<div class="nvtop-gpu">' +
+                    '<div class="nvtop-head"><span class="nvtop-name"></span><span class="nvtop-temp"></span></div>' +
+                    '<div class="nvtop-metric"><span class="nvtop-label">GPU</span>' + nvtopBar(g.utilization, '#38bdf8') +
+                    '<span class="nvtop-val">' + g.utilization + '%</span>' + nvtopSpark(hist) + '</div>' +
+                    '<div class="nvtop-metric"><span class="nvtop-label">MEM</span>' + nvtopBar(memPct, '#a78bfa') +
+                    '<span class="nvtop-val">' + gb(g.memoryUsed) + '/' + gb(g.memoryTotal) + ' GB</span></div>' +
+                    '<div class="nvtop-footer">' +
+                    '<span>' + Math.round(g.powerDraw) + '/' + Math.round(g.powerLimit) + ' W</span>' +
+                    '<span>Fan ' + g.fanSpeed + '%</span>' +
+                    '<span>' + g.clockGraphics + '/' + g.clockMemory + ' MHz</span>' +
+                    '</div>' +
+                    '</div>'
+                );
+                $card.find('.nvtop-name').text('GPU ' + g.index + '  ' + (g.name || '').replace(/NVIDIA\s+/i, ''));
+                $card.find('.nvtop-temp').text(g.temperature + '°C').css('color', tempColor(g.temperature));
+                $list.append($card);
+            });
+        }
+
+        const pollNvtop = function () {
+            $.ajax({
+                url: '/api/gpuStats',
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    if (response.status === 1 && response.data) {
+                        renderNvtop(response.data);
+                    }
+                },
+                error: function () {
+                    console.error('Failed to get GPU stats');
+                }
+            });
+        };
+        pollNvtop();
+        setInterval(pollNvtop, 1500);
+    }
 });

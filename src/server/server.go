@@ -199,6 +199,16 @@ func getGpuTemperatureCleanIndex(w http.ResponseWriter, r *http.Request) {
 	resp.Send(w)
 }
 
+// getGpuStats will return full per-GPU telemetry for the GPU Monitor widget
+func getGpuStats(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   systeminfo.GetGpuStats(),
+	}
+	resp.Send(w)
+}
+
 // getGpuLoadIndex will return gpu utilization for a specific gpu
 func getGpuLoadIndex(w http.ResponseWriter, r *http.Request) {
 	index, valid := getGpuIndexVar("/api/gpuLoad/", r)
@@ -2667,6 +2677,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/gpuTemp/clean/", http.MethodGet, getGpuTemperatureCleanIndex)
 	handleFunc(r, "/api/gpuLoad", http.MethodGet, getGpuLoad)
 	handleFunc(r, "/api/gpuLoad/", http.MethodGet, getGpuLoadIndex)
+	handleFunc(r, "/api/gpuStats", http.MethodGet, getGpuStats)
 	handleFunc(r, "/api/xeneon/media", http.MethodGet, getXeneonMedia)
 	handleFunc(r, "/api/xeneon/media/", http.MethodGet, xeneonedge.PerformMediaServe)
 	handleFunc(r, "/api/storageTemp", http.MethodGet, getStorageTemperature)
