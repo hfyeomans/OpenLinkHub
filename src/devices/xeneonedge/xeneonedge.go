@@ -69,6 +69,7 @@ type Widget struct {
 	TextColor       string  `json:"textColor"`
 	Url             string  `json:"url"`
 	MediaFile       string  `json:"mediaFile"`
+	Fit             string  `json:"fit"`
 	Interval        int     `json:"interval"`
 	BackgroundColor string  `json:"backgroundColor"`
 }
@@ -310,6 +311,7 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 		TextColor       *string  `json:"textColor"`
 		Url             *string  `json:"url"`
 		MediaFile       *string  `json:"mediaFile"`
+		Fit             *string  `json:"fit"`
 		Interval        *int     `json:"interval"`
 		BackgroundColor *string  `json:"backgroundColor"`
 	}{}
@@ -384,6 +386,14 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 			return 0
 		}
 		widget.MediaFile = *settings.MediaFile
+	}
+	if settings.Fit != nil {
+		switch *settings.Fit {
+		case "", "cover", "contain", "fill":
+			widget.Fit = *settings.Fit
+		default:
+			return 0
+		}
 	}
 	if settings.Interval != nil {
 		if *settings.Interval < 2 || *settings.Interval > 3600 {

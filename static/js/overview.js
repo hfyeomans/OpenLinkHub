@@ -1876,6 +1876,19 @@ $(document).ready(function () {
             </div>
         `;
 
+        const fitRow = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtFit', 'Fit')}</span>
+                <label for="widgetFit">
+                    <select id="widgetFit" class="system-select auto-width compact">
+                        <option value="cover">${i18n.t('txtFitFill', 'Fill (crop)')}</option>
+                        <option value="contain">${i18n.t('txtFitContain', 'Fit (letterbox)')}</option>
+                        <option value="fill">${i18n.t('txtFitStretch', 'Stretch')}</option>
+                    </select>
+                </label>
+            </div>
+        `;
+
         const imageRows = `
             <div class="settings-row">
                 <span class="settings-label text-ellipsis">${i18n.t('txtMediaFile', 'Media file')}</span>
@@ -1885,6 +1898,7 @@ $(document).ready(function () {
                     </select>
                 </label>
             </div>
+            ${fitRow}
         `;
 
         const slideshowRows = `
@@ -1894,6 +1908,7 @@ $(document).ready(function () {
                     <label for="widgetInterval"><input type="number" min="2" max="3600" id="widgetInterval"></label>
                 </div>
             </div>
+            ${fitRow}
         `;
 
         const weburlRows = `
@@ -1998,8 +2013,10 @@ $(document).ready(function () {
                         $select.append($('<option>', {value: current, text: current + ' (missing)'}));
                     }
                     $select.val(current);
+                    modal.find('#widgetFit').val($btn.attr('data-fit') || 'cover');
                 } else if (isSlideshow) {
                     modal.find('#widgetInterval').val($btn.attr('data-interval'));
+                    modal.find('#widgetFit').val($btn.attr('data-fit') || 'cover');
                 } else if (isWebUrl) {
                     modal.find('#widgetUrl').val($btn.attr('data-url'));
                 }
@@ -2045,6 +2062,7 @@ $(document).ready(function () {
                         widgetData.textColor = modal.find('#widgetTextColor').val();
                     } else if (isImage) {
                         widgetData.mediaFile = modal.find('#widgetMediaFile').val() || '';
+                        widgetData.fit = modal.find('#widgetFit').val();
                     } else if (isSlideshow) {
                         const interval = parseInt(modal.find('#widgetInterval').val());
                         if (isNaN(interval) || interval < 2 || interval > 3600) {
@@ -2052,6 +2070,7 @@ $(document).ready(function () {
                             return false;
                         }
                         widgetData.interval = interval;
+                        widgetData.fit = modal.find('#widgetFit').val();
                     } else if (isWebUrl) {
                         const url = modal.find('#widgetUrl').val().trim();
                         if (url.length > 0 && !/^https?:\/\//.test(url)) {

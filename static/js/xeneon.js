@@ -679,6 +679,7 @@ $(document).ready(function () {
     function renderMediaFrame($panel, file) {
         const $frame = $panel.find('.media-frame');
         const $placeholder = $panel.find('.media-placeholder');
+        const fit = $frame.attr('data-fit') || 'cover';
         const src = '/api/xeneon/media/' + encodeURIComponent(file);
         // A referenced file may have been deleted from the library; fall back to
         // the placeholder rather than showing a broken image.
@@ -698,6 +699,7 @@ $(document).ready(function () {
             $media = $('<img alt="">');
             $media.on('load', onLoad).on('error', onError);
         }
+        $media.css('object-fit', fit);
         $media.attr('src', src);
         $frame.empty().append($media);
     }
