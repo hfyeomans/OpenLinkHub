@@ -12,6 +12,7 @@ import (
 	"OpenLinkHub/src/dashboard"
 	"OpenLinkHub/src/devices"
 	"OpenLinkHub/src/devices/lcd"
+	"OpenLinkHub/src/devices/xeneonedge"
 	"OpenLinkHub/src/display"
 	"OpenLinkHub/src/inputmanager"
 	"OpenLinkHub/src/language"
@@ -1161,6 +1162,27 @@ func updateXeneonWidgetArea(w http.ResponseWriter, r *http.Request) {
 // updateXeneonWidget handles widget configuration change
 func updateXeneonWidget(w http.ResponseWriter, r *http.Request) {
 	request := requests.ProcessXeneonWidgetSettings(r)
+	resp := &Response{
+		Code:    request.Code,
+		Status:  request.Status,
+		Message: request.Message,
+	}
+	resp.Send(w)
+}
+
+// getXeneonMedia handles media library listing
+func getXeneonMedia(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   xeneonedge.GetMediaFiles(),
+	}
+	resp.Send(w)
+}
+
+// deleteXeneonMedia handles media library file deletion
+func deleteXeneonMedia(w http.ResponseWriter, r *http.Request) {
+	request := requests.ProcessXeneonMediaDelete(r)
 	resp := &Response{
 		Code:    request.Code,
 		Status:  request.Status,
@@ -2628,6 +2650,8 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/gpuTemp/clean/", http.MethodGet, getGpuTemperatureCleanIndex)
 	handleFunc(r, "/api/gpuLoad", http.MethodGet, getGpuLoad)
 	handleFunc(r, "/api/gpuLoad/", http.MethodGet, getGpuLoadIndex)
+	handleFunc(r, "/api/xeneon/media", http.MethodGet, getXeneonMedia)
+	handleFunc(r, "/api/xeneon/media/", http.MethodGet, xeneonedge.PerformMediaServe)
 	handleFunc(r, "/api/storageTemp", http.MethodGet, getStorageTemperature)
 	handleFunc(r, "/api/batteryStats", http.MethodGet, getBatteryStats)
 	handleFunc(r, "/api/devices/", http.MethodGet, getDevices)
@@ -2765,6 +2789,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/devices/channel", http.MethodPost, getChannelData)
 	handleFunc(r, "/api/display/update", http.MethodPost, updateDisplayData)
 	handleFunc(r, "/api/xeneon/widgetArea", http.MethodPost, updateXeneonWidgetArea)
+	handleFunc(r, "/api/xeneon/media/upload", http.MethodPost, xeneonedge.PerformMediaUpload)
 
 	// PUT
 	handleFunc(r, "/api/temperatures/update", http.MethodPut, updateTemperatureProfile)
@@ -2783,6 +2808,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/macro/profile", http.MethodDelete, deleteMacroProfile)
 	handleFunc(r, "/api/userProfile/delete", http.MethodDelete, deleteUserProfile)
 	handleFunc(r, "/api/dashboard/devices/delete", http.MethodDelete, removeDashboardDevice)
+	handleFunc(r, "/api/xeneon/media/delete", http.MethodDelete, deleteXeneonMedia)
 
 	// Prometheus metrics
 	if config.GetConfig().Metrics {

@@ -1803,7 +1803,12 @@ $(document).ready(function () {
     $('.configureWidget').on('click', function () {
         const $btn = $(this);
         const widgetId = parseInt($btn.data('info'));
-        const isWeather = String($btn.data('template')) === 'xeneon-weather';
+        const template = String($btn.data('template'));
+        const isWeather = template === 'xeneon-weather';
+        const isThermal = /^xeneon-(cpu|gpu)-(temp|load)$/.test(template);
+        const isImage = template === 'xeneon-image';
+        const isSlideshow = template === 'xeneon-slideshow';
+        const isWebUrl = template === 'xeneon-weburl';
 
         const weatherRows = `
             <div class="settings-row">
@@ -1871,106 +1876,318 @@ $(document).ready(function () {
             </div>
         `;
 
-        const modalElement = `
-            <div class="modal fade text-start" id="systemModal" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-custom modal-600">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title"></h5>
-                            <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body modal-title">
-                            <div class="settings-list">
-                                ${isWeather ? weatherRows : thermalRows}
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button class="system-button secondary" type="button" data-bs-dismiss="modal">${i18n.t('txtClose')}</button>
-                            <button class="system-button" type="button" id="btnSaveWidget">${i18n.t('txtSave')}</button>
-                        </div>
-                    </div>
+        const imageRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtMediaFile', 'Media file')}</span>
+                <label for="widgetMediaFile">
+                    <select id="widgetMediaFile" class="system-select auto-width compact">
+                        <option value="">${i18n.t('txtNone', 'None')}</option>
+                    </select>
+                </label>
+            </div>
+        `;
+
+        const slideshowRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtInterval', 'Interval (seconds)')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetInterval"><input type="number" min="2" max="3600" id="widgetInterval"></label>
                 </div>
             </div>
         `;
-        const modal = $(modalElement).modal('toggle');
-        modal.find('.modal-header .modal-title').text(i18n.t('txtConfigure') + ' - ' + $btn.data('name'));
 
-        modal.on('hidden.bs.modal', function () {
-            modal.data('bs.modal', null);
-        })
+        const weburlRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtUrl', 'URL')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetUrl"><input type="text" id="widgetUrl" autocomplete="off" placeholder="https://"></label>
+                </div>
+            </div>
+        `;
 
-        modal.on('shown.bs.modal', function () {
-            if (isWeather) {
-                modal.find('#widgetCity').val($btn.attr('data-city'));
-                modal.find('#widgetCountry').val($btn.attr('data-country'));
-                modal.find('#widgetLatitude').val($btn.attr('data-latitude'));
-                modal.find('#widgetLongitude').val($btn.attr('data-longitude'));
-                modal.find('#widgetAutoWeather').prop('checked', $btn.attr('data-autoweather') === 'true');
-            } else {
-                modal.find('#widgetHeaderText').val($btn.attr('data-headertext'));
-                modal.find('#widgetMax').val($btn.attr('data-max'));
-                modal.find('#widgetUnit').val($btn.attr('data-unit'));
-                modal.find('#widgetDataColor').val($btn.attr('data-datacolor'));
-                modal.find('#widgetTextColor').val($btn.attr('data-textcolor'));
-            }
+        // Thermal widgets own their text color as a type control (it predates the
+        // custom-style system), so their style section toggles background only.
+        const styleTextRow = isThermal ? '' : `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtTextColor', 'Text color')}</span>
+                <label for="widgetTextColor">
+                    <input type="color" id="widgetTextColor">
+                </label>
+            </div>
+        `;
+        const styleRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtCustomStyle', 'Custom style')}</span>
+                <label for="widgetCustomStyle">
+                    <input type="checkbox" id="widgetCustomStyle">
+                </label>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtBackgroundColor', 'Background color')}</span>
+                <label for="widgetBackgroundColor">
+                    <input type="color" id="widgetBackgroundColor">
+                </label>
+            </div>
+            ${styleTextRow}
+        `;
 
-            modal.find('#btnSaveWidget').on('click', function () {
-                let widgetData;
+        let typeRows = '';
+        if (isWeather) {
+            typeRows = weatherRows;
+        } else if (isThermal) {
+            typeRows = thermalRows;
+        } else if (isImage) {
+            typeRows = imageRows;
+        } else if (isSlideshow) {
+            typeRows = slideshowRows;
+        } else if (isWebUrl) {
+            typeRows = weburlRows;
+        }
+
+        const openModal = function (mediaFiles) {
+            const modalElement = `
+                <div class="modal fade text-start" id="systemModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-custom modal-600">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title"></h5>
+                                <button class="btn-close btn-close-white" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body modal-title">
+                                <div class="settings-list">
+                                    ${typeRows}
+                                    ${styleRows}
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="system-button secondary" type="button" data-bs-dismiss="modal">${i18n.t('txtClose')}</button>
+                                <button class="system-button" type="button" id="btnSaveWidget">${i18n.t('txtSave')}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            const modal = $(modalElement).modal('toggle');
+            modal.find('.modal-header .modal-title').text(i18n.t('txtConfigure') + ' - ' + $btn.data('name'));
+
+            modal.on('hidden.bs.modal', function () {
+                modal.data('bs.modal', null);
+            })
+
+            modal.on('shown.bs.modal', function () {
                 if (isWeather) {
-                    const city = modal.find('#widgetCity').val().trim();
-                    const latitude = parseFloat(modal.find('#widgetLatitude').val());
-                    const longitude = parseFloat(modal.find('#widgetLongitude').val());
-
-                    if (city.length < 1 || isNaN(latitude) || isNaN(longitude)) {
-                        toast.warning(i18n.t('txtUnableToUpdateWidget', 'Unable to save widget settings'));
-                        return false;
+                    modal.find('#widgetCity').val($btn.attr('data-city'));
+                    modal.find('#widgetCountry').val($btn.attr('data-country'));
+                    modal.find('#widgetLatitude').val($btn.attr('data-latitude'));
+                    modal.find('#widgetLongitude').val($btn.attr('data-longitude'));
+                    modal.find('#widgetAutoWeather').prop('checked', $btn.attr('data-autoweather') === 'true');
+                } else if (isThermal) {
+                    modal.find('#widgetHeaderText').val($btn.attr('data-headertext'));
+                    modal.find('#widgetMax').val($btn.attr('data-max'));
+                    modal.find('#widgetUnit').val($btn.attr('data-unit'));
+                    modal.find('#widgetDataColor').val($btn.attr('data-datacolor') || '#38bdf8');
+                    modal.find('#widgetTextColor').val($btn.attr('data-textcolor') || '#a1a1a1');
+                } else if (isImage) {
+                    const $select = modal.find('#widgetMediaFile');
+                    const current = $btn.attr('data-mediafile') || '';
+                    $.each(mediaFiles, function (_, file) {
+                        $select.append($('<option>', {value: file, text: file}));
+                    });
+                    // Keep a still-assigned but deleted file selectable so saving does not silently clear it
+                    if (current && mediaFiles.indexOf(current) === -1) {
+                        $select.append($('<option>', {value: current, text: current + ' (missing)'}));
                     }
-
-                    widgetData = {
-                        city: city,
-                        country: modal.find('#widgetCountry').val().trim(),
-                        latitude: latitude,
-                        longitude: longitude,
-                        autoWeather: modal.find('#widgetAutoWeather').is(':checked')
-                    };
-                } else {
-                    const max = parseInt(modal.find('#widgetMax').val());
-                    if (isNaN(max) || max < 1 || max > 1000) {
-                        toast.warning(i18n.t('txtUnableToUpdateWidget', 'Unable to save widget settings'));
-                        return false;
-                    }
-
-                    widgetData = {
-                        headerText: modal.find('#widgetHeaderText').val().trim(),
-                        max: max,
-                        unit: modal.find('#widgetUnit').val().trim(),
-                        dataColor: modal.find('#widgetDataColor').val(),
-                        textColor: modal.find('#widgetTextColor').val()
-                    };
+                    $select.val(current);
+                } else if (isSlideshow) {
+                    modal.find('#widgetInterval').val($btn.attr('data-interval'));
+                } else if (isWebUrl) {
+                    modal.find('#widgetUrl').val($btn.attr('data-url'));
                 }
 
-                const pf = {
-                    deviceId: $("#deviceId").val(),
-                    widgetId: widgetId,
-                    widgetData: JSON.stringify(widgetData)
-                };
+                const backgroundColor = $btn.attr('data-backgroundcolor') || '';
+                const textColor = $btn.attr('data-textcolor') || '';
+                // For thermal widgets textColor is always set (a type control), so the
+                // style toggle keys on background only to avoid auto-enabling it.
+                const styleEnabled = isThermal ? backgroundColor.length > 0 : (backgroundColor.length > 0 || textColor.length > 0);
+                modal.find('#widgetCustomStyle').prop('checked', styleEnabled);
+                modal.find('#widgetBackgroundColor').val(backgroundColor || '#101216');
+                if (!isThermal) {
+                    modal.find('#widgetTextColor').val(textColor || '#ffffff');
+                }
 
-                $.ajax({
-                    url: '/api/xeneon/widget',
-                    type: 'PUT',
-                    data: JSON.stringify(pf),
-                    cache: false,
-                    success: function (response) {
-                        if (response.status === 1) {
-                            location.reload();
-                        } else {
-                            toast.warning(response.message);
+                modal.find('#btnSaveWidget').on('click', function () {
+                    const widgetData = {};
+                    if (isWeather) {
+                        const city = modal.find('#widgetCity').val().trim();
+                        const latitude = parseFloat(modal.find('#widgetLatitude').val());
+                        const longitude = parseFloat(modal.find('#widgetLongitude').val());
+
+                        if (city.length < 1 || isNaN(latitude) || isNaN(longitude)) {
+                            toast.warning(i18n.t('txtUnableToUpdateWidget', 'Unable to save widget settings'));
+                            return false;
                         }
+
+                        widgetData.city = city;
+                        widgetData.country = modal.find('#widgetCountry').val().trim();
+                        widgetData.latitude = latitude;
+                        widgetData.longitude = longitude;
+                        widgetData.autoWeather = modal.find('#widgetAutoWeather').is(':checked');
+                    } else if (isThermal) {
+                        const max = parseInt(modal.find('#widgetMax').val());
+                        if (isNaN(max) || max < 1 || max > 1000) {
+                            toast.warning(i18n.t('txtUnableToUpdateWidget', 'Unable to save widget settings'));
+                            return false;
+                        }
+                        widgetData.headerText = modal.find('#widgetHeaderText').val().trim();
+                        widgetData.max = max;
+                        widgetData.unit = modal.find('#widgetUnit').val().trim();
+                        widgetData.dataColor = modal.find('#widgetDataColor').val();
+                        widgetData.textColor = modal.find('#widgetTextColor').val();
+                    } else if (isImage) {
+                        widgetData.mediaFile = modal.find('#widgetMediaFile').val() || '';
+                    } else if (isSlideshow) {
+                        const interval = parseInt(modal.find('#widgetInterval').val());
+                        if (isNaN(interval) || interval < 2 || interval > 3600) {
+                            toast.warning(i18n.t('txtUnableToUpdateWidget', 'Unable to save widget settings'));
+                            return false;
+                        }
+                        widgetData.interval = interval;
+                    } else if (isWebUrl) {
+                        const url = modal.find('#widgetUrl').val().trim();
+                        if (url.length > 0 && !/^https?:\/\//.test(url)) {
+                            toast.warning(i18n.t('txtInvalidUrl', 'URL must start with http:// or https://'));
+                            return false;
+                        }
+                        widgetData.url = url;
                     }
+
+                    // Custom style. Thermal text color is saved above as a type control;
+                    // its style section only governs the optional background.
+                    const styleOn = modal.find('#widgetCustomStyle').is(':checked');
+                    widgetData.backgroundColor = styleOn ? modal.find('#widgetBackgroundColor').val() : '';
+                    if (!isThermal) {
+                        widgetData.textColor = styleOn ? modal.find('#widgetTextColor').val() : '';
+                    }
+
+                    const pf = {
+                        deviceId: $("#deviceId").val(),
+                        widgetId: widgetId,
+                        widgetData: JSON.stringify(widgetData)
+                    };
+
+                    $.ajax({
+                        url: '/api/xeneon/widget',
+                        type: 'PUT',
+                        data: JSON.stringify(pf),
+                        cache: false,
+                        success: function (response) {
+                            if (response.status === 1) {
+                                location.reload();
+                            } else {
+                                toast.warning(response.message);
+                            }
+                        }
+                    });
                 });
             });
-        });
+        };
+
+        if (isImage) {
+            $.ajax({
+                url: '/api/xeneon/media',
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    openModal((response.status === 1 && response.data) ? response.data : []);
+                },
+                error: function () {
+                    openModal([]);
+                }
+            });
+        } else {
+            openModal([]);
+        }
     });
+
+    // Xeneon media library
+    if ($('#xeneonMediaList').length) {
+        const refreshMediaList = function () {
+            $.ajax({
+                url: '/api/xeneon/media',
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    const $list = $('#xeneonMediaList');
+                    $list.empty();
+                    const files = (response.status === 1 && response.data) ? response.data : [];
+                    $.each(files, function (_, file) {
+                        const $row = $(
+                            '<div class="settings-row">' +
+                            '<span class="settings-label text-ellipsis media-name"></span>' +
+                            '<button class="system-button danger center deleteMediaFile"></button>' +
+                            '</div>'
+                        );
+                        $row.find('.media-name').text(file).attr('title', file);
+                        $row.find('.deleteMediaFile').text(i18n.t('txtDelete', 'Delete')).attr('data-info', file);
+                        $list.append($row);
+                    });
+                }
+            });
+        };
+        refreshMediaList();
+
+        $('#xeneonMediaUpload').on('click', function () {
+            const fileInput = $('#xeneonMediaFile')[0];
+            if (!fileInput || !fileInput.files.length) {
+                toast.warning(i18n.t('txtNoMediaSelected', 'No media file selected'));
+                return false;
+            }
+            const btn = $(this);
+            btn.prop('disabled', true);
+            const formData = new FormData();
+            formData.append('mediaFile', fileInput.files[0]);
+            $.ajax({
+                url: '/api/xeneon/media/upload',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    btn.prop('disabled', false);
+                    if (response.status === 1) {
+                        fileInput.value = '';
+                        toast.success(response.message);
+                        refreshMediaList();
+                    } else {
+                        toast.warning(response.message || i18n.t('txtUnableToUploadMedia', 'Upload failed'));
+                    }
+                },
+                error: function (xhr) {
+                    btn.prop('disabled', false);
+                    toast.warning(xhr.responseText || i18n.t('txtUnableToUploadMedia', 'Upload failed'));
+                }
+            });
+        });
+
+        $('#xeneonMediaList').on('click', '.deleteMediaFile', function () {
+            const pf = {};
+            pf["mediaFile"] = $(this).attr('data-info');
+            $.ajax({
+                url: '/api/xeneon/media/delete',
+                type: 'DELETE',
+                data: JSON.stringify(pf),
+                cache: false,
+                success: function (response) {
+                    if (response.status === 1) {
+                        toast.success(response.message);
+                        refreshMediaList();
+                    } else {
+                        toast.warning(response.message);
+                    }
+                }
+            });
+        });
+    }
 
     $('.brightness').on('change', function () {
         const deviceId = $("#deviceId").val();

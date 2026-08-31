@@ -11,7 +11,7 @@
 {{ end }}
 {{ end }}
 <div class="edge-panel compact" id="xeneon-psu-status" data-serial="{{ $psuSerial }}">
-    <div class="card system-card">
+    <div class="card system-card"{{ if $widget.BackgroundColor }} style="background: {{ $widget.BackgroundColor }} !important;{{ if $widget.TextColor }} color: {{ $widget.TextColor }} !important;{{ end }}"{{ end }}>
         <div class="card-body">
             <div class="metric-row">
                 <span class="name">{{ if $psuName }}{{ $psuName }}{{ else }}PSU{{ end }}</span>

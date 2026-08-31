@@ -75,7 +75,6 @@
                             <div class="settings-list">
                                 <!-- Widgets -->
                                 {{ range $key, $widget := $deviceProfile.Widgets }}
-                                {{ if or $widget.City $widget.DataColor }}
                                 <div class="settings-row">
                                     <span class="settings-label text-ellipsis">{{ $widget.Name }}</span>
                                     <label>
@@ -92,11 +91,28 @@
                                                 data-max="{{ $widget.Max }}"
                                                 data-headertext="{{ $widget.HeaderText }}"
                                                 data-unit="{{ $widget.Unit }}"
-                                                data-textcolor="{{ $widget.TextColor }}">{{ $txtConfigure }}</button>
+                                                data-textcolor="{{ $widget.TextColor }}"
+                                                data-backgroundcolor="{{ $widget.BackgroundColor }}"
+                                                data-url="{{ $widget.Url }}"
+                                                data-mediafile="{{ $widget.MediaFile }}"
+                                                data-interval="{{ $widget.Interval }}">{{ $txtConfigure }}</button>
                                     </label>
                                 </div>
                                 {{ end }}
-                                {{ end }}
+                            </div><br />
+
+                            <!-- Media library -->
+                            <div class="settings-list">
+                                <div class="settings-row">
+                                    <span class="settings-label text-ellipsis">{{ .Lang "txtMediaLibrary" }}</span>
+                                </div>
+                                <div class="settings-row">
+                                    <input type="file" id="xeneonMediaFile" class="system-input compact" accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.ico,.mp4,.webm,.mov,.avi,.mpeg">
+                                </div>
+                                <div class="settings-row">
+                                    <button class="system-button center" id="xeneonMediaUpload">{{ .Lang "txtUpload" }}</button>
+                                </div>
+                                <div id="xeneonMediaList"></div>
                             </div>
                         </div>
                     </div>

@@ -1,16 +1,15 @@
-{{ define "xeneon-clock" }}
+{{ define "xeneon-weburl" }}
 {{ $root := .Root }}
 {{ $widgetArea := .WidgetArea }}
 {{ $widget := $widgetArea.Widget }}
-<div class="edge-panel compact" id="xeneon-clock">
+<div class="edge-panel media-panel" id="xeneon-weburl">
     <div class="card system-card"{{ if $widget.BackgroundColor }} style="background: {{ $widget.BackgroundColor }} !important;{{ if $widget.TextColor }} color: {{ $widget.TextColor }} !important;{{ end }}"{{ end }}>
         <div class="card-body">
-            <div class="clock-box">
-                <div>
-                    <div class="clock-time" id="clockTime">20:48</div>
-                    <div class="clock-date" id="clockDate">Sunday, March 22</div>
-                </div>
-            </div>
+            {{ if $widget.Url }}
+            <iframe class="weburl-frame" src="{{ $widget.Url }}" loading="lazy"></iframe>
+            {{ else }}
+            <div class="media-placeholder">{{ $root.Lang "txtNoUrlConfigured" }}</div>
+            {{ end }}
         </div>
     </div>
 </div>

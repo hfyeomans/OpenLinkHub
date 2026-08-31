@@ -11,6 +11,7 @@ import (
 	"OpenLinkHub/src/dashboard"
 	"OpenLinkHub/src/devices"
 	"OpenLinkHub/src/devices/lcd"
+	"OpenLinkHub/src/devices/xeneonedge"
 	"OpenLinkHub/src/display"
 	"OpenLinkHub/src/inputmanager"
 	"OpenLinkHub/src/keyboards"
@@ -151,6 +152,7 @@ type Payload struct {
 	Save                          bool                  `json:"save"`
 	WidgetId                      int                   `json:"widgetId"`
 	WidgetData                    string                `json:"widgetData"`
+	MediaFile                     string                `json:"mediaFile"`
 	SupportedDevices              map[uint16]bool       `json:"supportedDevices"`
 	VibrationValue                uint8                 `json:"vibrationValue"`
 	VibrationModule               uint8                 `json:"vibrationModule"`
@@ -2625,6 +2627,29 @@ func ProcessXeneonWidgetSettings(r *http.Request) *Payload {
 		}
 	}
 	return &Payload{Message: language.GetValue("txtUnableToUpdateWidget"), Code: http.StatusOK, Status: 0}
+}
+
+// ProcessXeneonMediaDelete will process DELETE request from a client for media library file deletion
+func ProcessXeneonMediaDelete(r *http.Request) *Payload {
+	req := &Payload{}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		logger.Log(map[string]interface{}{"error": err}).Error("Unable to decode JSON")
+		return &Payload{
+			Message: language.GetValue("txtUnableToValidateRequest"),
+			Code:    http.StatusOK,
+			Status:  0,
+		}
+	}
+
+	if !xeneonedge.IsValidMediaFile(req.MediaFile) {
+		return &Payload{Message: language.GetValue("txtUnableToDeleteMedia"), Code: http.StatusOK, Status: 0}
+	}
+
+	if xeneonedge.DeleteMediaFile(req.MediaFile) == 1 {
+		return &Payload{Message: language.GetValue("txtMediaDeleted"), Code: http.StatusOK, Status: 1}
+	}
+	return &Payload{Message: language.GetValue("txtUnableToDeleteMedia"), Code: http.StatusOK, Status: 0}
 }
 
 // ProcessBrightnessChange will process POST request from a client for device brightness change

@@ -51,22 +51,26 @@ type Device struct {
 }
 
 type Widget struct {
-	Id          int     `json:"id"`
-	Name        string  `json:"name"`
-	Template    string  `json:"template"`
-	Columns     []int   `json:"columns"`
-	GpuIndex    int     `json:"gpuIndex"`
-	City        string  `json:"city"`
-	Country     string  `json:"country"`
-	Latitude    float64 `json:"latitude"`
-	Longitude   float64 `json:"longitude"`
-	Source      string  `json:"source"`
-	AutoWeather bool    `json:"autoWeather"`
-	DataColor   string  `json:"dataColor"`
-	Max         int     `json:"max"`
-	HeaderText  string  `json:"headerText"`
-	Unit        string  `json:"unit"`
-	TextColor   string  `json:"textColor"`
+	Id              int     `json:"id"`
+	Name            string  `json:"name"`
+	Template        string  `json:"template"`
+	Columns         []int   `json:"columns"`
+	GpuIndex        int     `json:"gpuIndex"`
+	City            string  `json:"city"`
+	Country         string  `json:"country"`
+	Latitude        float64 `json:"latitude"`
+	Longitude       float64 `json:"longitude"`
+	Source          string  `json:"source"`
+	AutoWeather     bool    `json:"autoWeather"`
+	DataColor       string  `json:"dataColor"`
+	Max             int     `json:"max"`
+	HeaderText      string  `json:"headerText"`
+	Unit            string  `json:"unit"`
+	TextColor       string  `json:"textColor"`
+	Url             string  `json:"url"`
+	MediaFile       string  `json:"mediaFile"`
+	Interval        int     `json:"interval"`
+	BackgroundColor string  `json:"backgroundColor"`
 }
 
 var (
@@ -294,16 +298,20 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 	}
 
 	settings := &struct {
-		City        *string  `json:"city"`
-		Country     *string  `json:"country"`
-		Latitude    *float64 `json:"latitude"`
-		Longitude   *float64 `json:"longitude"`
-		AutoWeather *bool    `json:"autoWeather"`
-		DataColor   *string  `json:"dataColor"`
-		Max         *int     `json:"max"`
-		HeaderText  *string  `json:"headerText"`
-		Unit        *string  `json:"unit"`
-		TextColor   *string  `json:"textColor"`
+		City            *string  `json:"city"`
+		Country         *string  `json:"country"`
+		Latitude        *float64 `json:"latitude"`
+		Longitude       *float64 `json:"longitude"`
+		AutoWeather     *bool    `json:"autoWeather"`
+		DataColor       *string  `json:"dataColor"`
+		Max             *int     `json:"max"`
+		HeaderText      *string  `json:"headerText"`
+		Unit            *string  `json:"unit"`
+		TextColor       *string  `json:"textColor"`
+		Url             *string  `json:"url"`
+		MediaFile       *string  `json:"mediaFile"`
+		Interval        *int     `json:"interval"`
+		BackgroundColor *string  `json:"backgroundColor"`
 	}{}
 
 	if err := json.Unmarshal([]byte(data), settings); err != nil {
@@ -350,10 +358,38 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 		widget.DataColor = *settings.DataColor
 	}
 	if settings.TextColor != nil {
-		if !hexColorRegex.MatchString(*settings.TextColor) {
+		if len(*settings.TextColor) > 0 && !hexColorRegex.MatchString(*settings.TextColor) {
 			return 0
 		}
 		widget.TextColor = *settings.TextColor
+	}
+	if settings.BackgroundColor != nil {
+		if len(*settings.BackgroundColor) > 0 && !hexColorRegex.MatchString(*settings.BackgroundColor) {
+			return 0
+		}
+		widget.BackgroundColor = *settings.BackgroundColor
+	}
+	if settings.Url != nil {
+		url := strings.TrimSpace(*settings.Url)
+		if len(url) > 512 {
+			return 0
+		}
+		if len(url) > 0 && !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+			return 0
+		}
+		widget.Url = url
+	}
+	if settings.MediaFile != nil {
+		if len(*settings.MediaFile) > 0 && !IsValidMediaFile(*settings.MediaFile) {
+			return 0
+		}
+		widget.MediaFile = *settings.MediaFile
+	}
+	if settings.Interval != nil {
+		if *settings.Interval < 2 || *settings.Interval > 3600 {
+			return 0
+		}
+		widget.Interval = *settings.Interval
 	}
 	if settings.Max != nil {
 		if *settings.Max < 1 || *settings.Max > 1000 {

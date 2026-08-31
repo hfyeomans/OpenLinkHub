@@ -670,4 +670,72 @@ $(document).ready(function () {
             setInterval(pollPsu, 2000);
         }
     }
+
+    // Media widgets
+    function isVideoFile(file) {
+        return /\.(mp4|webm|mov|avi|mpeg)$/i.test(file);
+    }
+
+    function renderMediaFrame($panel, file) {
+        const $frame = $panel.find('.media-frame');
+        const $placeholder = $panel.find('.media-placeholder');
+        const src = '/api/xeneon/media/' + encodeURIComponent(file);
+        // A referenced file may have been deleted from the library; fall back to
+        // the placeholder rather than showing a broken image.
+        const onError = function () {
+            $frame.empty().prop('hidden', true);
+            $placeholder.prop('hidden', false);
+        };
+        const onLoad = function () {
+            $frame.prop('hidden', false);
+            $placeholder.prop('hidden', true);
+        };
+        let $media;
+        if (isVideoFile(file)) {
+            $media = $('<video autoplay loop muted playsinline></video>');
+            $media.on('loadeddata', onLoad).on('error', onError);
+        } else {
+            $media = $('<img alt="">');
+            $media.on('load', onLoad).on('error', onError);
+        }
+        $media.attr('src', src);
+        $frame.empty().append($media);
+    }
+
+    // Image / Video widget
+    if ($('#xeneon-image').length) {
+        const file = $('#xeneon-image .media-frame').attr('data-file');
+        if (file) {
+            renderMediaFrame($('#xeneon-image'), file);
+        }
+    }
+
+    // Slideshow widget
+    if ($('#xeneon-slideshow').length) {
+        const interval = (parseInt($('#xeneon-slideshow').attr('data-interval')) || 10) * 1000;
+        $.ajax({
+            url: '/api/xeneon/media',
+            method: 'GET',
+            dataType: 'json',
+            success: function (response) {
+                const files = (response.status === 1 && response.data) ? response.data : [];
+                if (files.length === 0) {
+                    $('#xeneon-slideshow .media-frame').prop('hidden', true);
+                    $('#xeneon-slideshow .media-placeholder').prop('hidden', false);
+                    return;
+                }
+                let current = 0;
+                renderMediaFrame($('#xeneon-slideshow'), files[current]);
+                if (files.length > 1) {
+                    setInterval(function () {
+                        current = (current + 1) % files.length;
+                        renderMediaFrame($('#xeneon-slideshow'), files[current]);
+                    }, interval);
+                }
+            },
+            error: function () {
+                console.error('Failed to get media library');
+            }
+        });
+    }
 });
