@@ -1159,6 +1159,17 @@ func updateXeneonWidgetArea(w http.ResponseWriter, r *http.Request) {
 	resp.Send(w)
 }
 
+// updateXeneonWidgetSpan handles widget span change
+func updateXeneonWidgetSpan(w http.ResponseWriter, r *http.Request) {
+	request := requests.ProcessXeneonWidgetSpan(r)
+	resp := &Response{
+		Code:    request.Code,
+		Status:  request.Status,
+		Message: request.Message,
+	}
+	resp.Send(w)
+}
+
 // updateXeneonWidget handles widget configuration change
 func updateXeneonWidget(w http.ResponseWriter, r *http.Request) {
 	request := requests.ProcessXeneonWidgetSettings(r)
@@ -2795,6 +2806,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/devices/channel", http.MethodPost, getChannelData)
 	handleFunc(r, "/api/display/update", http.MethodPost, updateDisplayData)
 	handleFunc(r, "/api/xeneon/widgetArea", http.MethodPost, updateXeneonWidgetArea)
+	handleFunc(r, "/api/xeneon/widgetSpan", http.MethodPost, updateXeneonWidgetSpan)
 	handleFunc(r, "/api/xeneon/media/upload", http.MethodPost, xeneonedge.PerformMediaUpload)
 
 	// PUT

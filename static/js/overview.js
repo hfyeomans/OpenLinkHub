@@ -1800,6 +1800,34 @@ $(document).ready(function () {
         });
     });
 
+    $('.widget-span-select').on('change', function () {
+        const areaId = parseInt($(this).data('area'));
+        const span = parseInt($(this).val());
+
+        if (isNaN(areaId) || isNaN(span)) {
+            return false;
+        }
+
+        const pf = {};
+        pf["deviceId"] = $("#deviceId").val();
+        pf["areaId"] = areaId;
+        pf["widgetSpan"] = span;
+
+        $.ajax({
+            url: '/api/xeneon/widgetSpan',
+            type: 'POST',
+            data: JSON.stringify(pf),
+            cache: false,
+            success: function(response) {
+                if (response.status === 1) {
+                    location.reload();
+                } else {
+                    toast.warning(response.message);
+                }
+            }
+        });
+    });
+
     $('.configureWidget').on('click', function () {
         const $btn = $(this);
         const widgetId = parseInt($btn.data('info'));

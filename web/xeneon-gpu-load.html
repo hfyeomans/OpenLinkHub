@@ -1,7 +1,6 @@
 {{ define "xeneon-gpu-load" }}
 {{ $root := .Root }}
-{{ $widgetArea := .WidgetArea }}
-{{ $widget := $widgetArea.Widget }}
+{{ $widget := .Widget }}
 <div class="card system-card thermal-widget gpu-load-widget" id="xeneon-gpu-load-{{ $widget.GpuIndex }}" data-gpu-index="{{ $widget.GpuIndex }}" data-value="0" data-max="{{ $widget.Max }}" data-color="{{ $widget.DataColor }}"{{ if $widget.BackgroundColor }} style="background: {{ $widget.BackgroundColor }} !important;"{{ end }}>
     <div class="card-body">
         <div class="thermal-meta">

@@ -1,8 +1,7 @@
 {{ define "xeneon-image" }}
 {{ $root := .Root }}
-{{ $widgetArea := .WidgetArea }}
-{{ $widget := $widgetArea.Widget }}
-<div class="edge-panel media-panel" id="xeneon-image">
+{{ $widget := .Widget }}
+<div class="edge-panel media-panel" id="xeneon-image"{{ with .Span }} style="flex-grow: {{ . }};"{{ end }}>
     <div class="card system-card"{{ if $widget.BackgroundColor }} style="background: {{ $widget.BackgroundColor }} !important;{{ if $widget.TextColor }} color: {{ $widget.TextColor }} !important;{{ end }}"{{ end }}>
         <div class="card-body">
             <div class="media-frame" data-fit="{{ $widget.Fit }}"{{ if $widget.MediaFile }} data-file="{{ $widget.MediaFile }}"{{ end }}></div>

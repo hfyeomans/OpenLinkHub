@@ -152,6 +152,7 @@ type Payload struct {
 	Save                          bool                  `json:"save"`
 	WidgetId                      int                   `json:"widgetId"`
 	WidgetData                    string                `json:"widgetData"`
+	WidgetSpan                    int                   `json:"widgetSpan"`
 	MediaFile                     string                `json:"mediaFile"`
 	SupportedDevices              map[uint16]bool       `json:"supportedDevices"`
 	VibrationValue                uint8                 `json:"vibrationValue"`
@@ -2575,6 +2576,50 @@ func ProcessXeneonWidgetArea(r *http.Request) *Payload {
 		"UpdateWidgetArea",
 		req.AreaId,
 		req.WidgetId,
+	)
+
+	if len(results) > 0 {
+		if results[0].Uint() == 1 {
+			return &Payload{Message: language.GetValue("txtWidgetAreaUpdated"), Code: http.StatusOK, Status: 1}
+		}
+	}
+	return &Payload{Message: language.GetValue("txtUnableToUpdateWidgetArea"), Code: http.StatusOK, Status: 0}
+}
+
+// ProcessXeneonWidgetSpan will process POST request from a client for widget span change
+func ProcessXeneonWidgetSpan(r *http.Request) *Payload {
+	req := &Payload{}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		logger.Log(map[string]interface{}{"error": err}).Error("Unable to decode JSON")
+		return &Payload{
+			Message: language.GetValue("txtUnableToValidateRequest"),
+			Code:    http.StatusOK,
+			Status:  0,
+		}
+	}
+
+	if len(req.DeviceId) == 0 {
+		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
+	}
+
+	if !common.AlphanumericDashRegex.MatchString(req.DeviceId) {
+		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
+	}
+
+	if devices.GetDevice(req.DeviceId) == nil {
+		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
+	}
+
+	if req.AreaId < 1 || req.WidgetSpan < 1 {
+		return &Payload{Message: language.GetValue("txtUnableToUpdateWidgetArea"), Code: http.StatusOK, Status: 0}
+	}
+
+	results := devices.CallDeviceMethod(
+		req.DeviceId,
+		"UpdateWidgetSpan",
+		req.AreaId,
+		req.WidgetSpan,
 	)
 
 	if len(results) > 0 {

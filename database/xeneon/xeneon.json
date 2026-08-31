@@ -54,7 +54,7 @@
       "columns": [2],
       "dataColor": "#38bdf8",
       "max": 100,
-      "headerText": "GPU Usage",
+      "headerText": "CPU Usage",
       "unit": "%",
       "textColor": "#a1a1a1"
     },

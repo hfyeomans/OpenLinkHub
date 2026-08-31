@@ -1,7 +1,6 @@
 {{ define "xeneon-weather" }}
 {{ $root := .Root }}
-{{ $widgetArea := .WidgetArea }}
-{{ $widget := $widgetArea.Widget }}
+{{ $widget := .Widget }}
 <div class="edge-panel" id="xeneon-weather"
      data-city="{{ $widget.City }}"
      data-country="{{ $widget.Country }}"

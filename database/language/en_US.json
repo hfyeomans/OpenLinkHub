@@ -639,6 +639,7 @@
     "txtMousePositionY": "Mouse position Y",
     "txtInvalidMousePosition": "Invalid mouse position",
     "txtXeneonEdgeUnavailable": "Xeneon Edge is unavailable",
+    "txtSpan": "Span",
     "txtFit": "Fit",
     "txtFitFill": "Fill (crop)",
     "txtFitContain": "Fit (letterbox)",

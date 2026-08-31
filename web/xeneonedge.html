@@ -154,6 +154,16 @@
                                                     {{ end }}
                                                     {{ end }}
                                                 </select>
+
+                                                {{ $spanChoices := $device.AreaSpanChoices $area }}
+                                                {{ if and $spanChoices (ne $assigned 0) }}
+                                                {{ $curSpan := $device.AreaSpan $area }}
+                                                <select class="form-select system-select auto-width widget-span-select" data-area="{{ $area }}" title="{{ $root.Lang "txtSpan" }}">
+                                                    {{ range $s := $spanChoices }}
+                                                    <option value="{{ $s }}"{{ if eq $s $curSpan }} selected{{ end }}>{{ $s }}×</option>
+                                                    {{ end }}
+                                                </select>
+                                                {{ end }}
                                             </div>
                                         </div>
                                     </div>

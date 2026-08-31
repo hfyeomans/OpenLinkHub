@@ -633,6 +633,7 @@
         "txtMousePositionY": "Положение мыши Y",
         "txtInvalidMousePosition": "Недопустимое положение мыши",
         "txtXeneonEdgeUnavailable": "Xeneon Edge недоступен",
+        "txtSpan": "Охват",
         "txtFit": "Вписывание",
         "txtFitFill": "Заполнить (обрезать)",
         "txtFitContain": "Вписать (letterbox)",

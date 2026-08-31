@@ -1,7 +1,6 @@
 {{ define "xeneon-psu-status" }}
 {{ $root := .Root }}
-{{ $widgetArea := .WidgetArea }}
-{{ $widget := $widgetArea.Widget }}
+{{ $widget := .Widget }}
 {{ $psuSerial := "" }}
 {{ $psuName := "" }}
 {{ range $key, $dev := $root.Devices }}

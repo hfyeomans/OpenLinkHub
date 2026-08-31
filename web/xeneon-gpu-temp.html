@@ -1,7 +1,6 @@
 {{ define "xeneon-gpu-temp" }}
 {{ $root := .Root }}
-{{ $widgetArea := .WidgetArea }}
-{{ $widget := $widgetArea.Widget }}
+{{ $widget := .Widget }}
 <div class="card system-card thermal-widget gpu-temp-widget" id="xeneon-gpu-temp-{{ $widget.GpuIndex }}" data-gpu-index="{{ $widget.GpuIndex }}" data-value="68" data-max="{{ $widget.Max }}" data-color="{{ $widget.DataColor }}"{{ if $widget.BackgroundColor }} style="background: {{ $widget.BackgroundColor }} !important;"{{ end }}>
     <div class="card-body">
         <div class="thermal-meta">

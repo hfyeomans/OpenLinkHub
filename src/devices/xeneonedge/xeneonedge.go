@@ -29,8 +29,15 @@ type DeviceProfile struct {
 }
 
 type WidgetArea struct {
-	WidgetId int     `json:"widgetId"`
-	Widget   *Widget `json:"widget"`
+	WidgetId int `json:"widgetId"`
+	Span     int `json:"span,omitempty"`
+}
+
+// RenderSlot is a resolved widget ready to render into a kiosk column, together
+// with the number of areas it spans.
+type RenderSlot struct {
+	Widget *Widget
+	Span   int
 }
 type Device struct {
 	dev             *hid.Device
@@ -241,6 +248,95 @@ func areaColumn(areaId int) int {
 	return 0
 }
 
+// columnAreas lists the kiosk areas per side column in vertical order. The middle
+// column (rings) is intentionally excluded — it does not support spanning.
+var columnAreas = map[int][]int{
+	1: {1, 2},
+	3: {9, 10, 11},
+}
+
+// areasRemainingInColumn returns how many areas remain from areaId to the bottom
+// of its column (1 when the area's column does not support spanning).
+func areasRemainingInColumn(areaId int) int {
+	areas, ok := columnAreas[areaColumn(areaId)]
+	if !ok {
+		return 1
+	}
+	for i, id := range areas {
+		if id == areaId {
+			return len(areas) - i
+		}
+	}
+	return 1
+}
+
+// AreaSpanChoices returns the valid span values for an area (nil when the area
+// cannot span more than one slot), for building the config UI.
+func (d *Device) AreaSpanChoices(areaId int) []int {
+	n := areasRemainingInColumn(areaId)
+	if n <= 1 {
+		return nil
+	}
+	choices := make([]int, n)
+	for i := range choices {
+		choices[i] = i + 1
+	}
+	return choices
+}
+
+// AreaSpan returns the configured span for an area (1 when unset).
+func (d *Device) AreaSpan(areaId int) int {
+	if d.DeviceProfile != nil {
+		if area, ok := d.DeviceProfile.WidgetAreas[areaId]; ok && area.Span > 1 {
+			return area.Span
+		}
+	}
+	return 1
+}
+
+// AreaWidget resolves the widget assigned to an area, or nil when unassigned.
+// Called from templates, so it must stay exported.
+func (d *Device) AreaWidget(areaId int) *Widget {
+	if d.DeviceProfile == nil {
+		return nil
+	}
+	if area, ok := d.DeviceProfile.WidgetAreas[areaId]; ok {
+		return d.getProfileWidget(area.WidgetId)
+	}
+	return nil
+}
+
+// SegmentSlots resolves the widgets for a column's area ids in order, skipping
+// areas covered by a preceding widget that spans multiple areas. Called from
+// templates to render the side columns.
+func (d *Device) SegmentSlots(areaIds ...int) []RenderSlot {
+	var slots []RenderSlot
+	if d.DeviceProfile == nil {
+		return slots
+	}
+	skip := 0
+	for idx, id := range areaIds {
+		if skip > 0 {
+			skip--
+			continue
+		}
+		widget := d.AreaWidget(id)
+		if widget == nil {
+			continue
+		}
+		span := d.DeviceProfile.WidgetAreas[id].Span
+		if span < 1 {
+			span = 1
+		}
+		if remaining := len(areaIds) - idx; span > remaining {
+			span = remaining
+		}
+		slots = append(slots, RenderSlot{Widget: widget, Span: span})
+		skip = span - 1
+	}
+	return slots
+}
+
 // getProfileWidget will return a widget from the active device profile
 func (d *Device) getProfileWidget(widgetId int) *Widget {
 	if d.DeviceProfile == nil {
@@ -286,7 +382,29 @@ func (d *Device) UpdateWidgetArea(areaId int, widgetId int) uint8 {
 		}
 	}
 
-	d.DeviceProfile.WidgetAreas[areaId] = WidgetArea{WidgetId: widgetId, Widget: widget}
+	d.DeviceProfile.WidgetAreas[areaId] = WidgetArea{WidgetId: widgetId}
+	d.saveDeviceProfile()
+	return 1
+}
+
+// UpdateWidgetSpan will set how many consecutive areas a widget occupies. Span
+// is clamped to the area's column so a widget cannot bleed past its column.
+func (d *Device) UpdateWidgetSpan(areaId int, span int) uint8 {
+	if d.DeviceProfile == nil {
+		return 0
+	}
+
+	area, ok := d.DeviceProfile.WidgetAreas[areaId]
+	if !ok || area.WidgetId == 0 {
+		return 0
+	}
+
+	if span < 1 || span > areasRemainingInColumn(areaId) {
+		return 0
+	}
+
+	area.Span = span
+	d.DeviceProfile.WidgetAreas[areaId] = area
 	d.saveDeviceProfile()
 	return 1
 }
@@ -422,13 +540,6 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 		widget.Unit = unit
 	}
 
-	// Refresh area snapshots pointing to this widget
-	for key, area := range d.DeviceProfile.WidgetAreas {
-		if area.WidgetId == widgetId {
-			d.DeviceProfile.WidgetAreas[key] = WidgetArea{WidgetId: widgetId, Widget: widget}
-		}
-	}
-
 	d.saveDeviceProfile()
 	return 1
 }
@@ -500,48 +611,17 @@ func (d *Device) saveDeviceProfile() {
 	if d.DeviceProfile == nil {
 		deviceProfile.Active = true
 		deviceProfile.WidgetAreas = map[int]WidgetArea{
-			1: {
-				WidgetId: 1,
-				Widget:   d.getWidget(1),
-			},
-			2: {
-				WidgetId: 2,
-				Widget:   d.getWidget(2),
-			},
-			3: {
-				WidgetId: 6,
-				Widget:   d.getWidget(6),
-			},
-			4: {
-				WidgetId: 7,
-				Widget:   d.getWidget(7),
-			},
-			5: {
-				WidgetId: 8,
-				Widget:   d.getWidget(8),
-			},
-			6: {
-				WidgetId: 9,
-				Widget:   d.getWidget(9),
-			},
-			7: {
-				WidgetId: 0,
-			},
-			8: {
-				WidgetId: 0,
-			},
-			9: {
-				WidgetId: 3,
-				Widget:   d.getWidget(3),
-			},
-			10: {
-				WidgetId: 5,
-				Widget:   d.getWidget(5),
-			},
-			11: {
-				WidgetId: 4,
-				Widget:   d.getWidget(4),
-			},
+			1:  {WidgetId: 1},
+			2:  {WidgetId: 2},
+			3:  {WidgetId: 6},
+			4:  {WidgetId: 7},
+			5:  {WidgetId: 8},
+			6:  {WidgetId: 9},
+			7:  {WidgetId: 0},
+			8:  {WidgetId: 0},
+			9:  {WidgetId: 3},
+			10: {WidgetId: 5},
+			11: {WidgetId: 4},
 		}
 		deviceProfile.Widgets = d.Widgets
 	} else {
