@@ -41,13 +41,14 @@ body.edge-dashboard {
 .edge-layout {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
     gap: 12px;
     height: 100%;
 }
 
 .edge-segment {
     min-width: 0;
-    height: 695px;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -267,8 +268,8 @@ body.edge-dashboard {
     border-color: rgba(255, 209, 102, 0.45);
 }
 .ring-chart {
-    width: 120px;
-    height: 120px;
+    width: clamp(64px, 14vh, 150px);
+    height: clamp(64px, 14vh, 150px);
     margin: 0 auto;
     position: relative;
     flex-shrink: 0;
@@ -503,13 +504,6 @@ code {
     margin-top: 2px;
 }
 
-.ring-chart {
-    height: -webkit-fill-available;
-    width: -webkit-fill-available;
-    position: relative;
-    flex-shrink: 0;
-    margin:0 20px 19px 20px;
-}
 .text-ellipsis {
     white-space: nowrap;
     overflow: hidden;

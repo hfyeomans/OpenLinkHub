@@ -2637,7 +2637,13 @@ func handleFunc(mux *http.ServeMux, path, method string, handler func(w http.Res
 func setRoutes() http.Handler {
 	r := http.NewServeMux()
 	fs := http.FileServer(http.Dir("./static"))
-	r.Handle("/static/", http.StripPrefix("/static/", fs))
+	// Revalidate static assets on every load so template/CSS/JS updates are not
+	// masked by a stale browser cache (files still return 304 when unchanged).
+	staticHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		http.StripPrefix("/static/", fs).ServeHTTP(w, r)
+	})
+	r.Handle("/static/", staticHandler)
 
 	// GET
 	handleFunc(r, "/api/", http.MethodGet, homePage)
