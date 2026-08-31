@@ -35,6 +35,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Response contains data what is sent back to a client
@@ -56,6 +57,10 @@ type Header struct {
 
 var headers []Header
 var server = &http.Server{}
+
+// assetVer busts the browser cache for static assets on each process start, so
+// template/CSS/JS updates always reach clients (e.g. the Xeneon kiosk).
+var assetVer = strconv.FormatInt(time.Now().Unix(), 10)
 
 // Send will process response and send it back to a client
 func (r *Response) Send(w http.ResponseWriter) {
@@ -2590,6 +2595,7 @@ func uiXeneon(w http.ResponseWriter, _ *http.Request) {
 	web.BatteryStats = stats.GetBatteryStats()
 	web.Device = xeneon
 	web.Page = "xeneon"
+	web.AssetVer = assetVer
 
 	t := templates.GetTemplate()
 	for header := range headers {
