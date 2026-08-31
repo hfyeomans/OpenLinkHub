@@ -268,8 +268,8 @@ body.edge-dashboard {
     border-color: rgba(255, 209, 102, 0.45);
 }
 .ring-chart {
-    width: clamp(120px, 20vh, 220px);
-    height: clamp(120px, 20vh, 220px);
+    width: clamp(130px, 25vh, 280px);
+    height: clamp(130px, 25vh, 280px);
     margin: 0 auto;
     position: relative;
     flex-shrink: 0;
@@ -310,7 +310,7 @@ body.edge-dashboard {
     justify-content: center;
 }
 .ring-chart .center .big {
-    font-size: clamp(12px, 2vh, 22px);
+    font-size: clamp(13px, 2.2vh, 26px);
     font-weight: 700;
     color: var(--text-main);
 }
@@ -483,7 +483,7 @@ code {
 }
 
 .thermal-temp {
-    font-size: clamp(40px, 7vh, 78px);
+    font-size: clamp(44px, 7.5vh, 82px);
     line-height: 1;
     color: var(--text-muted);
     font-family: "Teko", sans-serif;
