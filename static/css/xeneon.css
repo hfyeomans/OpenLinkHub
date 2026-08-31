@@ -310,7 +310,7 @@ body.edge-dashboard {
     justify-content: center;
 }
 .ring-chart .center .big {
-    font-size: clamp(13px, 2.2vh, 26px);
+    font-size: clamp(14px, 2.5vh, 28px);
     font-weight: 700;
     color: var(--text-main);
 }
@@ -483,7 +483,7 @@ code {
 }
 
 .thermal-temp {
-    font-size: clamp(44px, 7.5vh, 82px);
+    font-size: clamp(52px, 9vh, 100px);
     line-height: 1;
     color: var(--text-muted);
     font-family: "Teko", sans-serif;
