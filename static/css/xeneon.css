@@ -749,3 +749,57 @@ code {
     font-size: 12px;
     opacity: 0.6;
 }
+
+/* GPU Monitor v2: dense cards + process table */
+.nvtop-list {
+    gap: 8px;
+}
+.nvtop-gpus {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+.nvtop-gpu {
+    gap: 4px;
+    padding: 6px 8px;
+}
+.nvtop-name {
+    font-size: 10px;
+}
+.nvtop-procs {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    padding-top: 4px;
+}
+.nvtop-procs table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+.nvtop-procs th {
+    text-align: left;
+    font-weight: 600;
+    opacity: 0.5;
+    padding: 2px 6px 2px 0;
+    position: sticky;
+    top: 0;
+    background: var(--surface, #16181d);
+}
+.nvtop-procs td {
+    padding: 1px 6px 1px 0;
+    opacity: 0.85;
+    white-space: nowrap;
+}
+.nvtop-procs .num {
+    text-align: right;
+}
+.nvtop-procs .proc-name {
+    width: 99%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 0;
+}

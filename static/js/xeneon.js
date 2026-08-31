@@ -776,22 +776,26 @@ $(document).ready(function () {
             return (mb / 1024).toFixed(1);
         }
 
-        function renderNvtop(stats) {
-            const $list = $('#xeneon-nvtop .nvtop-list');
-            $list.empty();
-            if (!stats.length) {
-                $list.append($('<div class="nvtop-empty"></div>').text(i18n.t('txtNoGpuData', 'No GPU data')));
-                return;
-            }
+        function shortName(name) {
+            if (!name) return '';
+            let n = name.split(' ')[0];      // drop args
+            n = n.split('/').pop();          // basename
+            return n.length > 22 ? n.slice(0, 21) + '…' : n;
+        }
+
+        function renderGpuCards(stats) {
+            let html = '<div class="nvtop-gpus">';
             stats.forEach(function (g) {
                 const hist = histories[g.index] || (histories[g.index] = []);
                 hist.push(g.utilization);
                 if (hist.length > NVTOP_HISTORY) hist.shift();
-
                 const memPct = g.memoryTotal > 0 ? (g.memoryUsed / g.memoryTotal) * 100 : 0;
-                const $card = $(
+                html +=
                     '<div class="nvtop-gpu">' +
-                    '<div class="nvtop-head"><span class="nvtop-name"></span><span class="nvtop-temp"></span></div>' +
+                    '<div class="nvtop-head">' +
+                    '<span class="nvtop-name">GPU' + g.index + ' ' + (g.name || '').replace(/NVIDIA\s+/i, '') + '</span>' +
+                    '<span class="nvtop-temp" style="color:' + tempColor(g.temperature) + '">' + g.temperature + '°C</span>' +
+                    '</div>' +
                     '<div class="nvtop-metric"><span class="nvtop-label">GPU</span>' + nvtopBar(g.utilization, '#38bdf8') +
                     '<span class="nvtop-val">' + g.utilization + '%</span>' + nvtopSpark(hist) + '</div>' +
                     '<div class="nvtop-metric"><span class="nvtop-label">MEM</span>' + nvtopBar(memPct, '#a78bfa') +
@@ -800,13 +804,39 @@ $(document).ready(function () {
                     '<span>' + Math.round(g.powerDraw) + '/' + Math.round(g.powerLimit) + ' W</span>' +
                     '<span>Fan ' + g.fanSpeed + '%</span>' +
                     '<span>' + g.clockGraphics + '/' + g.clockMemory + ' MHz</span>' +
-                    '</div>' +
-                    '</div>'
-                );
-                $card.find('.nvtop-name').text('GPU ' + g.index + '  ' + (g.name || '').replace(/NVIDIA\s+/i, ''));
-                $card.find('.nvtop-temp').text(g.temperature + '°C').css('color', tempColor(g.temperature));
-                $list.append($card);
+                    '</div></div>';
             });
+            return html + '</div>';
+        }
+
+        function renderProcs(procs) {
+            if (!procs || !procs.length) return '';
+            const sorted = procs.slice().sort(function (a, b) { return b.memory - a.memory; });
+            let html = '<div class="nvtop-procs"><table><thead><tr>' +
+                '<th>DEV</th><th>TYPE</th><th>PID</th><th class="num">MEM</th><th>PROCESS</th>' +
+                '</tr></thead><tbody>';
+            sorted.forEach(function (p) {
+                html += '<tr><td>' + p.gpuIndex + '</td><td>' + p.type + '</td><td>' + p.pid +
+                    '</td><td class="num">' + p.memory + 'M</td><td class="proc-name"></td></tr>';
+            });
+            html += '</tbody></table></div>';
+            const $frag = $(html);
+            $frag.find('.proc-name').each(function (i) { $(this).text(shortName(sorted[i].name)); });
+            return $frag;
+        }
+
+        function renderNvtop(data) {
+            const stats = (data && data.gpus) || [];
+            const procs = (data && data.processes) || [];
+            const $list = $('#xeneon-nvtop .nvtop-list');
+            $list.empty();
+            if (!stats.length) {
+                $list.append($('<div class="nvtop-empty"></div>').text(i18n.t('txtNoGpuData', 'No GPU data')));
+                return;
+            }
+            $list.append(renderGpuCards(stats));
+            const $procs = renderProcs(procs);
+            if ($procs) $list.append($procs);
         }
 
         const pollNvtop = function () {

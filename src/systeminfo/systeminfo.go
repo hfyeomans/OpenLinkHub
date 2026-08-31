@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -69,6 +70,21 @@ type GpuStat struct {
 	FanSpeed      int     `json:"fanSpeed"`
 	ClockGraphics int     `json:"clockGraphics"`
 	ClockMemory   int     `json:"clockMemory"`
+}
+
+// GpuProcess is a single GPU process row for the GPU Monitor widget.
+type GpuProcess struct {
+	GpuIndex int    `json:"gpuIndex"`
+	Pid      int    `json:"pid"`
+	Type     string `json:"type"`
+	Name     string `json:"name"`
+	Memory   int    `json:"memory"`
+}
+
+// GpuStats bundles per-GPU telemetry with the GPU process table.
+type GpuStats struct {
+	Gpus      []GpuStat    `json:"gpus"`
+	Processes []GpuProcess `json:"processes"`
 }
 
 type StorageData struct {
@@ -381,6 +397,42 @@ func GetGpuStats() []GpuStat {
 		})
 	}
 	return stats
+}
+
+// gpuProcessRegex parses a process row from default nvidia-smi output:
+// |    1   N/A  N/A   10373      G   /usr/bin/ghostty            118MiB |
+var gpuProcessRegex = regexp.MustCompile(`^\|\s+(\d+)\s+\S+\s+\S+\s+(\d+)\s+(\S+)\s+(.+?)\s+(\d+)MiB\s*\|`)
+
+// GetGpuProcesses returns the GPU process table (NVIDIA) for the GPU Monitor widget.
+func GetGpuProcesses() []GpuProcess {
+	procs := make([]GpuProcess, 0)
+	if !isNvidiaSmiFound {
+		return procs
+	}
+
+	output, err := exec.Command("nvidia-smi").Output()
+	if err != nil {
+		return procs
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		m := gpuProcessRegex.FindStringSubmatch(scanner.Text())
+		if m == nil {
+			continue
+		}
+		gpuIndex, _ := strconv.Atoi(m[1])
+		pid, _ := strconv.Atoi(m[2])
+		memory, _ := strconv.Atoi(m[5])
+		procs = append(procs, GpuProcess{
+			GpuIndex: gpuIndex,
+			Pid:      pid,
+			Type:     m[3],
+			Name:     strings.TrimSpace(m[4]),
+			Memory:   memory,
+		})
+	}
+	return procs
 }
 
 // GetNVIDIAUtilization will return NVIDIA gpu utilization

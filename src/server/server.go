@@ -199,12 +199,15 @@ func getGpuTemperatureCleanIndex(w http.ResponseWriter, r *http.Request) {
 	resp.Send(w)
 }
 
-// getGpuStats will return full per-GPU telemetry for the GPU Monitor widget
+// getGpuStats will return per-GPU telemetry and the GPU process table
 func getGpuStats(w http.ResponseWriter, _ *http.Request) {
 	resp := &Response{
 		Code:   http.StatusOK,
 		Status: 1,
-		Data:   systeminfo.GetGpuStats(),
+		Data: systeminfo.GpuStats{
+			Gpus:      systeminfo.GetGpuStats(),
+			Processes: systeminfo.GetGpuProcesses(),
+		},
 	}
 	resp.Send(w)
 }
