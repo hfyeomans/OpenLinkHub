@@ -72,8 +72,6 @@ type GpuStat struct {
 	ClockMemory   int     `json:"clockMemory"`
 	PcieGen       int     `json:"pcieGen"`
 	PcieWidth     int     `json:"pcieWidth"`
-	RxPci         int     `json:"rxPci"`
-	TxPci         int     `json:"txPci"`
 }
 
 // GpuProcess is a single GPU process row for the GPU Monitor widget.
@@ -102,6 +100,11 @@ type GpuThroughput struct {
 type GpuExtended struct {
 	Throughput []GpuThroughput `json:"throughput"`
 	Processes  []GpuProcess    `json:"processes"`
+}
+
+// GpuTelemetry is the fast-poll response for the GPU Monitor widget.
+type GpuTelemetry struct {
+	Gpus []GpuStat `json:"gpus"`
 }
 
 type StorageData struct {
@@ -384,12 +387,20 @@ func GetGpuStats() []GpuStat {
 		return stats
 	}
 
+	// nvidia-smi prints "[N/A]" / "[Not Supported]" for fields a GPU cannot
+	// report; return -1 so the widget shows "—" instead of a fake 0.
 	atoi := func(s string) int {
-		v, _ := strconv.Atoi(strings.TrimSpace(s))
+		v, err := strconv.Atoi(strings.TrimSpace(s))
+		if err != nil {
+			return -1
+		}
 		return v
 	}
 	atof := func(s string) float64 {
-		v, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+		v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+		if err != nil {
+			return -1
+		}
 		return v
 	}
 
@@ -451,7 +462,8 @@ func GetGpuThroughput() []GpuThroughput {
 
 // gpuProcessRegex parses a process row from default nvidia-smi output:
 // |    1   N/A  N/A   10373      G   /usr/bin/ghostty            118MiB |
-var gpuProcessRegex = regexp.MustCompile(`^\|\s+(\d+)\s+\S+\s+\S+\s+(\d+)\s+(\S+)\s+(.+?)\s+(\d+)MiB\s*\|`)
+// The GI/CI columns (MIG) are optional so pre-MIG nvidia-smi layouts still parse.
+var gpuProcessRegex = regexp.MustCompile(`^\|\s+(\d+)\s+(?:\S+\s+\S+\s+)?(\d+)\s+(\S+)\s+(.+?)\s+(\d+)MiB\s*\|`)
 
 // GetGpuProcesses returns the GPU process table (NVIDIA) for the GPU Monitor widget.
 func GetGpuProcesses() []GpuProcess {
@@ -531,6 +543,11 @@ func enrichGpuProcessUtilization(procs []GpuProcess) {
 }
 
 // enrichHostProcessInfo fills user, cpu %, host memory and full command via ps.
+// Note: the full command line (and owner) of every GPU process is then served
+// over the unauthenticated /api/gpuExtended endpoint, matching nvtop's process
+// table. Command lines can contain secrets passed as arguments; this stays
+// within the app's existing no-auth/LAN posture but exposes more than the older
+// hardware-only telemetry endpoints.
 func enrichHostProcessInfo(procs []GpuProcess) {
 	if len(procs) == 0 {
 		return

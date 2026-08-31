@@ -209,7 +209,7 @@ func getGpuStats(w http.ResponseWriter, _ *http.Request) {
 	resp := &Response{
 		Code:   http.StatusOK,
 		Status: 1,
-		Data:   map[string]interface{}{"gpus": systeminfo.GetGpuStats()},
+		Data:   systeminfo.GpuTelemetry{Gpus: systeminfo.GetGpuStats()},
 	}
 	resp.Send(w)
 }

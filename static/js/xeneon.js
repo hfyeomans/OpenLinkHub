@@ -766,11 +766,6 @@ $(document).ready(function () {
             return (mb / 1024).toFixed(1);
         }
 
-        function shortName(name) {
-            if (!name) return '';
-            let n = name.split(' ')[0].split('/').pop();
-            return n.length > 24 ? n.slice(0, 23) + '…' : n;
-        }
 
         function stat(label, val) {
             return '<span class="nvtop-stat">' + (label ? '<i>' + label + '</i>' : '') + val + '</span>';
@@ -786,6 +781,11 @@ $(document).ready(function () {
             });
         }
 
+        // Show "—" for values nvidia-smi could not report (sentinel -1).
+        function na(v, suffix) {
+            return v < 0 ? '—' : v + (suffix || '');
+        }
+
         function renderGpuCards(stats) {
             let html = '<div class="nvtop-gpus">';
             stats.forEach(function (g) {
@@ -793,6 +793,7 @@ $(document).ready(function () {
                 const pcie = g.pcieGen > 0 ? 'PCIe ' + g.pcieGen + '@' + g.pcieWidth + 'x' : '';
                 const tp = nvtopThroughput[g.index];
                 const io = tp ? ' &#8595;' + tp.rx + ' &#8593;' + tp.tx + ' MB/s' : '';
+                const pow = (g.powerDraw < 0 || g.powerLimit < 0) ? '—' : Math.round(g.powerDraw) + '/' + Math.round(g.powerLimit) + 'W';
                 html +=
                     '<div class="nvtop-gpu">' +
                     '<div class="nvtop-devline">' +
@@ -800,11 +801,11 @@ $(document).ready(function () {
                     '<span class="nvtop-pcie">' + pcie + io + '</span>' +
                     '</div>' +
                     '<div class="nvtop-statline">' +
-                    stat('GPU ', g.clockGraphics + 'MHz') +
-                    stat('MEM ', g.clockMemory + 'MHz') +
-                    '<span class="nvtop-stat" style="color:' + tempColor(g.temperature) + '">' + g.temperature + '&deg;C</span>' +
-                    stat('FAN ', g.fanSpeed + '%') +
-                    stat('POW ', Math.round(g.powerDraw) + '/' + Math.round(g.powerLimit) + 'W') +
+                    stat('GPU ', na(g.clockGraphics, 'MHz')) +
+                    stat('MEM ', na(g.clockMemory, 'MHz')) +
+                    '<span class="nvtop-stat" style="color:' + tempColor(g.temperature) + '">' + na(g.temperature, '&deg;C') + '</span>' +
+                    stat('FAN ', na(g.fanSpeed, '%')) +
+                    stat('POW ', pow) +
                     '</div>' +
                     '<div class="nvtop-metric"><span class="nvtop-label">GPU</span>' + nvtopBar(g.utilization, '#38bdf8') +
                     '<span class="nvtop-val">' + g.utilization + '%</span></div>' +

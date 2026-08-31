@@ -651,7 +651,6 @@ code {
     display: block;
 }
 
-
 /* GPU Monitor (nvtop) widget — span-tiered font sizing */
 #xeneon-nvtop { --nv-fs: 12px; }
 #xeneon-nvtop[data-span="1"] { --nv-fs: 15px; }
