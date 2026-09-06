@@ -273,6 +273,34 @@
       ],
       "minSpan": 1,
       "maxSpan": 3
+    },
+    {
+      "id": 24,
+      "name": "Storage 1 Temp",
+      "template": "xeneon-storage-temp",
+      "columns": [
+        2
+      ],
+      "storageIndex": 0,
+      "dataColor": "#22d3ee",
+      "max": 80,
+      "headerText": "Storage 1 Temp",
+      "unit": "°C",
+      "textColor": "#a1a1a1"
+    },
+    {
+      "id": 25,
+      "name": "Storage 2 Temp",
+      "template": "xeneon-storage-temp",
+      "columns": [
+        2
+      ],
+      "storageIndex": 1,
+      "dataColor": "#818cf8",
+      "max": 80,
+      "headerText": "Storage 2 Temp",
+      "unit": "°C",
+      "textColor": "#a1a1a1"
     }
   ]
 }

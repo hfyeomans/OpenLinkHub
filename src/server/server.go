@@ -205,6 +205,20 @@ func getGpuTemperatureCleanIndex(w http.ResponseWriter, r *http.Request) {
 	resp.Send(w)
 }
 
+// getStorageTemperatureCleanIndex returns the live temperature of the Nth storage
+// device for the Edge storage ring widget.
+func getStorageTemperatureCleanIndex(w http.ResponseWriter, r *http.Request) {
+	value, valid := getVar("/api/storageTemp/clean/", r)
+	index, err := strconv.Atoi(value)
+	if !valid || err != nil {
+		resp := &Response{Code: http.StatusOK, Status: 0, Message: language.GetValue("txtUnableToValidateRequest")}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{Code: http.StatusOK, Status: 1, Data: systeminfo.GetStorageTemperatureIndex(index)}
+	resp.Send(w)
+}
+
 // getGpuStats will return fast per-GPU telemetry for the GPU Monitor widget
 func getGpuStats(w http.ResponseWriter, _ *http.Request) {
 	resp := &Response{
@@ -2824,6 +2838,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/gpuTemps", http.MethodGet, getGpuTemperatures)
 	handleFunc(r, "/api/gpuTemp/clean", http.MethodGet, getGpuTemperatureClean)
 	handleFunc(r, "/api/gpuTemp/clean/", http.MethodGet, getGpuTemperatureCleanIndex)
+	handleFunc(r, "/api/storageTemp/clean/", http.MethodGet, getStorageTemperatureCleanIndex)
 	handleFunc(r, "/api/gpuLoad", http.MethodGet, getGpuLoad)
 	handleFunc(r, "/api/gpuLoad/", http.MethodGet, getGpuLoadIndex)
 	handleFunc(r, "/api/gpuStats", http.MethodGet, getGpuStats)

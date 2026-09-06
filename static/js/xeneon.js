@@ -689,6 +689,28 @@ $(document).ready(function () {
         }, 1000);
     });
 
+    // Storage Temp (one widget per drive, index via data-storage-index)
+    $('.storage-temp-widget').each(function () {
+        const $widget = $(this);
+        const storageIndex = parseInt($widget.data('storage-index')) || 0;
+        setInterval(function () {
+            $.ajax({
+                url: '/api/storageTemp/clean/' + storageIndex,
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    if (response.status === 1 && response.data != null && response.data >= 0) {
+                        updateRing($widget, response.data, $widget.data('max'));
+                        setThermalValue($widget, response.data, $widget.data('max'));
+                    }
+                },
+                error: function () {
+                    console.error('Failed to get storage temperature');
+                }
+            });
+        }, 2000);
+    });
+
     // GPU Load (one widget per GPU, index via data-gpu-index)
     $('.gpu-load-widget').each(function () {
         const $widget = $(this);

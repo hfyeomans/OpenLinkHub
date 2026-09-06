@@ -677,6 +677,28 @@ func (si *SystemInfo) GetStorageData() {
 	si.Storage = &storageList
 }
 
+// GetStorageTemperatureIndex returns the live temperature (°C) of the Nth storage
+// device in hwmon order, or -1 when unavailable. Read fresh each call so Edge ring
+// gauges stay current.
+func GetStorageTemperatureIndex(index int) int {
+	info := &SystemInfo{}
+	info.GetStorageData()
+	if info.Storage == nil || index < 0 || index >= len(*info.Storage) {
+		return -1
+	}
+	return int((*info.Storage)[index].Temperature)
+}
+
+// GetStorageCount returns how many storage devices expose a temperature sensor.
+func GetStorageCount() int {
+	info := &SystemInfo{}
+	info.GetStorageData()
+	if info.Storage == nil {
+		return 0
+	}
+	return len(*info.Storage)
+}
+
 // GetBoardData will return motherboard details
 func (si *SystemInfo) GetBoardData() {
 	board := &MotherboardData{}

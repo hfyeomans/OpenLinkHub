@@ -75,6 +75,7 @@ type Widget struct {
 	Template        string  `json:"template"`
 	Columns         []int   `json:"columns"`
 	GpuIndex        int     `json:"gpuIndex"`
+	StorageIndex    int     `json:"storageIndex"`
 	City            string  `json:"city"`
 	Country         string  `json:"country"`
 	Latitude        float64 `json:"latitude"`
@@ -894,6 +895,7 @@ func (d *Device) mergeCatalogWidgets(pf *DeviceProfile) {
 				pf.Widgets[i].Template = catalog.Template
 				pf.Widgets[i].Columns = catalog.Columns
 				pf.Widgets[i].GpuIndex = catalog.GpuIndex
+				pf.Widgets[i].StorageIndex = catalog.StorageIndex
 				pf.Widgets[i].MinSpan = catalog.MinSpan
 				pf.Widgets[i].MaxSpan = catalog.MaxSpan
 				// Embedded widgets carry a fixed catalog URL (not user-editable),
