@@ -162,6 +162,19 @@ func Exchange(code string) error {
 	defer mu.Unlock()
 
 	code = strings.TrimSpace(code)
+	// Be forgiving about what the user pastes: accept the whole redirected URL
+	// or a "code=..." fragment, not just the bare authorization code.
+	if strings.Contains(code, "code=") {
+		if u, err := url.Parse(code); err == nil && u.Query().Get("code") != "" {
+			code = u.Query().Get("code")
+		} else {
+			code = code[strings.Index(code, "code=")+len("code="):]
+			if amp := strings.IndexAny(code, "&#"); amp >= 0 {
+				code = code[:amp]
+			}
+		}
+		code = strings.TrimSpace(code)
+	}
 	if code == "" {
 		return errors.New("authorization code is required")
 	}
