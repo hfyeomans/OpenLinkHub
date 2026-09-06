@@ -54,6 +54,27 @@ body.edge-dashboard {
     gap: 12px;
 }
 
+/* Side columns: a fixed 3-row grid. Each widget is placed at its row and may
+   span rows; empty rows stay as blank (assignable) slots; covered rows are
+   occupied by the spanning widget above them. */
+.edge-segment.edge-side {
+    display: grid;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+.edge-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    min-height: 0;
+}
+/* A single-panel widget fills its slot (overriding .compact). Weather is the one
+   widget with two panels (hero + forecast); those keep their own flex sizing. */
+.edge-slot > .edge-panel:only-child {
+    flex: 1 1 auto;
+}
+
 .edge-panel {
     flex: 1;
     min-height: 0;

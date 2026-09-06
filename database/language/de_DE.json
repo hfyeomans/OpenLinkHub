@@ -639,6 +639,7 @@
     "txtMousePositionY": "Mausposition Y",
     "txtInvalidMousePosition": "Ungültige Mausposition",
     "txtXeneonEdgeUnavailable": "Xeneon Edge ist nicht verfügbar",
+    "txtCoveredBySpan": "Von Spanne abgedeckt",
     "txtNoGpuData": "Keine GPU-Daten",
     "txtSpan": "Bereich",
     "txtFit": "Anpassung",

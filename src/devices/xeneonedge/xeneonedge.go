@@ -44,11 +44,12 @@ type WidgetArea struct {
 	Span     int `json:"span,omitempty"`
 }
 
-// RenderSlot is a resolved widget ready to render into a kiosk column, together
-// with the number of areas it spans.
+// RenderSlot is a resolved widget ready to render into a kiosk column, with its
+// 1-based start row and how many rows it spans.
 type RenderSlot struct {
 	Widget *Widget
 	Span   int
+	Row    int
 }
 type Device struct {
 	dev             *hid.Device
@@ -90,6 +91,25 @@ type Widget struct {
 	Fit             string  `json:"fit"`
 	Interval        int     `json:"interval"`
 	BackgroundColor string  `json:"backgroundColor"`
+	MinSpan         int     `json:"minSpan"` // inherent floor of rows a widget occupies (0/1 = single)
+	MaxSpan         int     `json:"maxSpan"` // user ceiling (0/1 = fixed size, no span selector)
+}
+
+// spanFloor returns the widget's inherent minimum row span (>=1).
+func (w *Widget) spanFloor() int {
+	if w != nil && w.MinSpan > 1 {
+		return w.MinSpan
+	}
+	return 1
+}
+
+// spanCeil returns the widget's maximum user-selectable row span (>= floor).
+func (w *Widget) spanCeil() int {
+	floor := w.spanFloor()
+	if w != nil && w.MaxSpan > floor {
+		return w.MaxSpan
+	}
+	return floor
 }
 
 var (
@@ -249,7 +269,7 @@ func (d *Device) DeleteDeviceProfile(profileName string) uint8 {
 // areaColumn will return the kiosk column for a widget area
 func areaColumn(areaId int) int {
 	switch {
-	case areaId >= 1 && areaId <= 2:
+	case areaId >= 1 && areaId <= 2, areaId == 12:
 		return 1
 	case areaId >= 3 && areaId <= 8:
 		return 2
@@ -259,11 +279,64 @@ func areaColumn(areaId int) int {
 	return 0
 }
 
-// columnAreas lists the kiosk areas per side column in vertical order. The middle
-// column (rings) is intentionally excluded — it does not support spanning.
+// columnAreas lists the kiosk areas per side column top-to-bottom (3 slots each;
+// area 12 is the left column's middle slot). The middle column (rings) is
+// intentionally excluded — it does not support spanning.
 var columnAreas = map[int][]int{
-	1: {1, 2},
+	1: {1, 12, 2},
 	3: {9, 10, 11},
+}
+
+// allAreas is every area id, used to backfill profiles saved before a layout change.
+var allAreas = []int{1, 12, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+
+// effectiveSpanFor returns how many slots a widget actually occupies in a column:
+// its user-set span, raised to the widget's inherent floor, capped by its ceiling
+// and the slots remaining below it.
+func effectiveSpanFor(area WidgetArea, w *Widget, remaining int) int {
+	span := area.Span
+	if floor := w.spanFloor(); span < floor {
+		span = floor
+	}
+	if ceil := w.spanCeil(); span > ceil {
+		span = ceil
+	}
+	if span > remaining {
+		span = remaining
+	}
+	if span < 1 {
+		span = 1
+	}
+	return span
+}
+
+// ColumnAreas returns a side column's area ids top-to-bottom (for the config page).
+func (d *Device) ColumnAreas(col int) []int { return columnAreas[col] }
+
+// AreaCovered reports whether an area is hidden underneath a preceding widget that
+// spans into it (so the config page can blank it out).
+func (d *Device) AreaCovered(areaId int) bool {
+	col, ok := columnAreas[areaColumn(areaId)]
+	if !ok {
+		return false
+	}
+	covered := 0
+	for i, id := range col {
+		if covered > 0 {
+			if id == areaId {
+				return true
+			}
+			covered--
+			continue
+		}
+		if id == areaId {
+			return false
+		}
+		if w := d.AreaWidget(id); w != nil {
+			covered = effectiveSpanFor(d.DeviceProfile.WidgetAreas[id], w, len(col)-i) - 1
+		}
+	}
+	return false
 }
 
 // areasRemainingInColumn returns how many areas remain from areaId to the bottom
@@ -281,28 +354,38 @@ func areasRemainingInColumn(areaId int) int {
 	return 1
 }
 
-// AreaSpanChoices returns the valid span values for an area (nil when the area
-// cannot span more than one slot), for building the config UI.
+// AreaSpanChoices returns the valid span values for a sizable widget in an area
+// (nil for fixed-size widgets or when no room to grow), for the config UI.
 func (d *Device) AreaSpanChoices(areaId int) []int {
-	n := areasRemainingInColumn(areaId)
-	if n <= 1 {
+	w := d.AreaWidget(areaId)
+	if w == nil {
 		return nil
 	}
-	choices := make([]int, n)
-	for i := range choices {
-		choices[i] = i + 1
+	floor, ceil := w.spanFloor(), w.spanCeil()
+	if ceil <= floor {
+		return nil // fixed-size widget (e.g. Weather) — not user-resizable
+	}
+	max := ceil
+	if r := areasRemainingInColumn(areaId); r < max {
+		max = r
+	}
+	if max <= floor {
+		return nil
+	}
+	choices := make([]int, 0, max-floor+1)
+	for s := floor; s <= max; s++ {
+		choices = append(choices, s)
 	}
 	return choices
 }
 
-// AreaSpan returns the configured span for an area (1 when unset).
+// AreaSpan returns the effective span for an area's widget (1 when unassigned).
 func (d *Device) AreaSpan(areaId int) int {
-	if d.DeviceProfile != nil {
-		if area, ok := d.DeviceProfile.WidgetAreas[areaId]; ok && area.Span > 1 {
-			return area.Span
-		}
+	w := d.AreaWidget(areaId)
+	if w == nil {
+		return 1
 	}
-	return 1
+	return effectiveSpanFor(d.DeviceProfile.WidgetAreas[areaId], w, areasRemainingInColumn(areaId))
 }
 
 // AreaWidget resolves the widget assigned to an area, or nil when unassigned.
@@ -335,14 +418,8 @@ func (d *Device) SegmentSlots(areaIds ...int) []RenderSlot {
 		if widget == nil {
 			continue
 		}
-		span := d.DeviceProfile.WidgetAreas[id].Span
-		if span < 1 {
-			span = 1
-		}
-		if remaining := len(areaIds) - idx; span > remaining {
-			span = remaining
-		}
-		slots = append(slots, RenderSlot{Widget: widget, Span: span})
+		span := effectiveSpanFor(d.DeviceProfile.WidgetAreas[id], widget, len(areaIds)-idx)
+		slots = append(slots, RenderSlot{Widget: widget, Span: span, Row: idx + 1})
 		skip = span - 1
 	}
 	return slots
@@ -410,7 +487,11 @@ func (d *Device) UpdateWidgetSpan(areaId int, span int) uint8 {
 		return 0
 	}
 
-	if span < 1 || span > areasRemainingInColumn(areaId) {
+	w := d.getProfileWidget(area.WidgetId)
+	if w == nil {
+		return 0
+	}
+	if span < w.spanFloor() || span > w.spanCeil() || span > areasRemainingInColumn(areaId) {
 		return 0
 	}
 
@@ -622,17 +703,18 @@ func (d *Device) saveDeviceProfile() {
 	if d.DeviceProfile == nil {
 		deviceProfile.Active = true
 		deviceProfile.WidgetAreas = map[int]WidgetArea{
-			1:  {WidgetId: 1},
-			2:  {WidgetId: 2},
+			1:  {WidgetId: 2}, // Weather (inherent 2 rows -> covers area 12)
+			12: {WidgetId: 0}, // left-middle (covered by Weather by default)
+			2:  {WidgetId: 1}, // Date / Time (bottom-left)
 			3:  {WidgetId: 6},
 			4:  {WidgetId: 7},
 			5:  {WidgetId: 8},
 			6:  {WidgetId: 9},
 			7:  {WidgetId: 0},
 			8:  {WidgetId: 0},
-			9:  {WidgetId: 3},
-			10: {WidgetId: 5},
-			11: {WidgetId: 4},
+			9:  {WidgetId: 3}, // Media Player
+			10: {WidgetId: 5}, // Calendar
+			11: {WidgetId: 4}, // Battery
 		}
 		deviceProfile.Widgets = d.Widgets
 	} else {
@@ -735,6 +817,7 @@ func (d *Device) loadDeviceProfiles() {
 
 		if pf.Serial == d.Serial {
 			d.mergeCatalogWidgets(pf)
+			ensureAreas(pf)
 			if fileName == d.Serial {
 				profileList["default"] = pf
 			} else {
@@ -746,6 +829,20 @@ func (d *Device) loadDeviceProfiles() {
 	}
 	d.UserProfiles = profileList
 	d.getDeviceProfile()
+}
+
+// ensureAreas backfills any area ids missing from a stored profile (e.g. the
+// left-middle slot added when side columns went to 3 rows) as empty, so older
+// profiles gain the new slots without losing existing assignments.
+func ensureAreas(pf *DeviceProfile) {
+	if pf.WidgetAreas == nil {
+		pf.WidgetAreas = make(map[int]WidgetArea, len(allAreas))
+	}
+	for _, id := range allAreas {
+		if _, ok := pf.WidgetAreas[id]; !ok {
+			pf.WidgetAreas[id] = WidgetArea{}
+		}
+	}
 }
 
 // mergeCatalogWidgets reconciles a stored profile against the widget catalog:
@@ -762,6 +859,8 @@ func (d *Device) mergeCatalogWidgets(pf *DeviceProfile) {
 				pf.Widgets[i].Template = catalog.Template
 				pf.Widgets[i].Columns = catalog.Columns
 				pf.Widgets[i].GpuIndex = catalog.GpuIndex
+				pf.Widgets[i].MinSpan = catalog.MinSpan
+				pf.Widgets[i].MaxSpan = catalog.MaxSpan
 				existing = true
 				break
 			}

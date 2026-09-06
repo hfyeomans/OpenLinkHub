@@ -633,6 +633,7 @@
         "txtMousePositionY": "Положение мыши Y",
         "txtInvalidMousePosition": "Недопустимое положение мыши",
         "txtXeneonEdgeUnavailable": "Xeneon Edge недоступен",
+        "txtCoveredBySpan": "Занято соседним",
         "txtNoGpuData": "Нет данных о GPU",
         "txtSpan": "Охват",
         "txtFit": "Вписывание",

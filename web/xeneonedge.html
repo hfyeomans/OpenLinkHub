@@ -120,7 +120,7 @@
                 </div>
                 {{ $rows := .Slice
                 (.Slice (.Slice 4 1) (.Slice 2 3) (.Slice 2 4) (.Slice 4 9))
-                (.Slice (.Slice 4 0) (.Slice 2 5) (.Slice 2 6) (.Slice 4 10))
+                (.Slice (.Slice 4 12) (.Slice 2 5) (.Slice 2 6) (.Slice 4 10))
                 (.Slice (.Slice 4 2) (.Slice 2 7) (.Slice 2 8) (.Slice 4 11))
                 }}
 
@@ -137,9 +137,14 @@
 
                                 <div class="col-md-{{ $col }}">
                                     {{ if ne $area 0 }}
+                                    {{ if $device.AreaCovered $area }}
+                                    <div class="card p-3 xeneon-edge-panel d-flex justify-content-center align-items-center" style="min-height: 120px; opacity: 0.4; border-style: dashed;">
+                                        <span class="settings-label text-ellipsis">{{ $root.Lang "txtCoveredBySpan" }}</span>
+                                    </div>
+                                    {{ else }}
                                     {{ $assigned := (index $deviceProfile.WidgetAreas $area).WidgetId }}
-                                    {{ $wantCol := 3 }}
-                                    {{ if eq $col 2 }}{{ $wantCol = 2 }}{{ else if le $area 2 }}{{ $wantCol = 1 }}{{ end }}
+                                    {{ $wantCol := 1 }}
+                                    {{ if eq $col 2 }}{{ $wantCol = 2 }}{{ end }}
                                     <div class="card p-3 xeneon-edge-panel d-flex justify-content-center align-items-center" style="min-height: 120px;">
                                         <div class="d-flex flex-column align-items-center gap-2">
                                             <div class="d-flex gap-2 align-items-center">
@@ -167,6 +172,7 @@
                                             </div>
                                         </div>
                                     </div>
+                                    {{ end }}
                                     {{ end }}
                                 </div>
                                 {{ end }}

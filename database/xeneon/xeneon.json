@@ -4,54 +4,77 @@
       "id": 1,
       "name": "Date / Time",
       "template": "xeneon-clock",
-      "columns": [1,3]
+      "columns": [
+        1,
+        3
+      ]
     },
     {
       "id": 2,
       "name": "Weather",
       "template": "xeneon-weather",
-      "columns": [1,3],
+      "columns": [
+        1,
+        3
+      ],
       "city": "New York",
       "country": "United States",
       "latitude": 40.7128,
-      "longitude": -74.0060,
+      "longitude": -74.006,
       "source": "Fallback city",
-      "autoWeather": false
+      "autoWeather": false,
+      "minSpan": 2,
+      "maxSpan": 2
     },
     {
       "id": 3,
       "name": "Media Player",
       "template": "xeneon-media-player",
-      "columns": [1,3]
+      "columns": [
+        1,
+        3
+      ],
+      "minSpan": 1,
+      "maxSpan": 3
     },
     {
       "id": 4,
       "name": "Battery Status",
       "template": "xeneon-battery-status",
-      "columns": [1,3]
+      "columns": [
+        1,
+        3
+      ]
     },
     {
       "id": 5,
       "name": "Calendar",
       "template": "xeneon-calendar",
-      "columns": [1,3]
+      "columns": [
+        1,
+        3
+      ]
     },
     {
       "id": 6,
       "name": "CPU Temp",
       "template": "xeneon-cpu-temp",
-      "columns": [2],
+      "columns": [
+        2
+      ],
       "dataColor": "#FFC107",
       "max": 95,
       "headerText": "CPU Temperature",
-      "unit": "°C",
+      "unit": "\u00b0C",
       "textColor": "#a1a1a1"
     },
     {
       "id": 7,
       "name": "CPU Load",
       "template": "xeneon-cpu-load",
-      "columns": [2],
+      "columns": [
+        2
+      ],
       "dataColor": "#38bdf8",
       "max": 100,
       "headerText": "CPU Usage",
@@ -62,19 +85,23 @@
       "id": 8,
       "name": "GPU Temp",
       "template": "xeneon-gpu-temp",
-      "columns": [2],
+      "columns": [
+        2
+      ],
       "gpuIndex": 0,
       "dataColor": "#FFC107",
       "max": 85,
       "headerText": "GPU Temperature",
-      "unit": "°C",
+      "unit": "\u00b0C",
       "textColor": "#a1a1a1"
     },
     {
       "id": 9,
       "name": "GPU Load",
       "template": "xeneon-gpu-load",
-      "columns": [2],
+      "columns": [
+        2
+      ],
       "gpuIndex": 0,
       "dataColor": "#38bdf8",
       "max": 100,
@@ -86,19 +113,23 @@
       "id": 10,
       "name": "GPU 2 Temp",
       "template": "xeneon-gpu-temp",
-      "columns": [2],
+      "columns": [
+        2
+      ],
       "gpuIndex": 1,
       "dataColor": "#fb7185",
       "max": 85,
       "headerText": "GPU 2 Temperature",
-      "unit": "°C",
+      "unit": "\u00b0C",
       "textColor": "#a1a1a1"
     },
     {
       "id": 11,
       "name": "GPU 2 Load",
       "template": "xeneon-gpu-load",
-      "columns": [2],
+      "columns": [
+        2
+      ],
       "gpuIndex": 1,
       "dataColor": "#4ade80",
       "max": 100,
@@ -110,32 +141,55 @@
       "id": 12,
       "name": "PSU Status",
       "template": "xeneon-psu-status",
-      "columns": [1,3]
+      "columns": [
+        1,
+        3
+      ]
     },
     {
       "id": 13,
       "name": "Image / Video",
       "template": "xeneon-image",
-      "columns": [1,3]
+      "columns": [
+        1,
+        3
+      ],
+      "minSpan": 1,
+      "maxSpan": 3
     },
     {
       "id": 14,
       "name": "Slideshow",
       "template": "xeneon-slideshow",
-      "columns": [1,3],
-      "interval": 10
+      "columns": [
+        1,
+        3
+      ],
+      "interval": 10,
+      "minSpan": 1,
+      "maxSpan": 3
     },
     {
       "id": 15,
       "name": "Web URL",
       "template": "xeneon-weburl",
-      "columns": [1,3]
+      "columns": [
+        1,
+        3
+      ],
+      "minSpan": 1,
+      "maxSpan": 3
     },
     {
       "id": 16,
       "name": "GPU Monitor",
       "template": "xeneon-nvtop",
-      "columns": [1,3]
+      "columns": [
+        1,
+        3
+      ],
+      "minSpan": 1,
+      "maxSpan": 3
     }
   ]
 }

@@ -40,9 +40,11 @@
     <div class="edge-layout">
         {{ $device := .Device.Instance }}
 
-        <section class="edge-segment">
-            {{ range $slot := $device.SegmentSlots 1 2 }}
-            {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget "Span" $slot.Span) }}
+        <section class="edge-segment edge-side">
+            {{ range $slot := $device.SegmentSlots 1 12 2 }}
+            <div class="edge-slot" style="grid-row: {{ $slot.Row }} / span {{ $slot.Span }};">
+                {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget) }}
+            </div>
             {{ end }}
         </section>
 
@@ -66,9 +68,11 @@
             {{ end }}
         </section>
 
-        <section class="edge-segment">
+        <section class="edge-segment edge-side">
             {{ range $slot := $device.SegmentSlots 9 10 11 }}
-            {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget "Span" $slot.Span) }}
+            <div class="edge-slot" style="grid-row: {{ $slot.Row }} / span {{ $slot.Span }};">
+                {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget) }}
+            </div>
             {{ end }}
         </section>
     </div>
