@@ -290,74 +290,107 @@ var columnAreas = map[int][]int{
 // allAreas is every area id, used to backfill profiles saved before a layout change.
 var allAreas = []int{1, 12, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
 
-// effectiveSpanFor returns how many slots a widget actually occupies in a column:
-// its user-set span, raised to the widget's inherent floor, capped by its ceiling
-// and the slots remaining below it.
-func effectiveSpanFor(area WidgetArea, w *Widget, remaining int) int {
-	span := area.Span
-	if floor := w.spanFloor(); span < floor {
-		span = floor
+// columnPlacement is a widget's resolved position within a side column.
+type columnPlacement struct {
+	slot    RenderSlot // Widget, Span and 1-based start Row; Widget is nil for empty/covered areas
+	avail   int        // largest span the widget could occupy here (self + empty slots below and above)
+	covered bool       // true when this area is hidden beneath another widget's span
+}
+
+// computeColumnLayout resolves every area in a side column (given top-to-bottom):
+// which widget anchors it, how many rows it spans, its start row, and which areas it
+// hides. A widget fills empty slots below it first, then any remaining span grows
+// upward — so a fixed multi-row widget (e.g. Weather) anchored at the bottom still
+// gets its full height by consuming the empty slot(s) above it.
+func (d *Device) computeColumnLayout(areaIds []int) map[int]columnPlacement {
+	res := make(map[int]columnPlacement, len(areaIds))
+	if d.DeviceProfile == nil {
+		return res
 	}
-	if ceil := w.spanCeil(); span > ceil {
-		span = ceil
+	n := len(areaIds)
+	consumed := make([]bool, n) // slots already claimed by an earlier widget's span
+	for i, id := range areaIds {
+		if consumed[i] {
+			res[id] = columnPlacement{covered: true}
+			continue
+		}
+		w := d.AreaWidget(id)
+		if w == nil {
+			continue
+		}
+		// Count empty, unclaimed slots directly below and above the anchor.
+		emptyBelow := 0
+		for j := i + 1; j < n && !consumed[j] && d.AreaWidget(areaIds[j]) == nil; j++ {
+			emptyBelow++
+		}
+		emptyAbove := 0
+		for j := i - 1; j >= 0 && !consumed[j] && d.AreaWidget(areaIds[j]) == nil; j-- {
+			emptyAbove++
+		}
+		maxAvail := 1 + emptyBelow + emptyAbove
+		floor, ceil := w.spanFloor(), w.spanCeil()
+		avail := ceil
+		if avail > maxAvail {
+			avail = maxAvail
+		}
+		if avail < 1 {
+			avail = 1
+		}
+		span := d.DeviceProfile.WidgetAreas[id].Span
+		if span < floor {
+			span = floor
+		}
+		if span > ceil {
+			span = ceil
+		}
+		if span > maxAvail {
+			span = maxAvail
+		}
+		if span < 1 {
+			span = 1
+		}
+		// Fill downward first, then grow upward with whatever span is left.
+		downUsed := span - 1
+		if downUsed > emptyBelow {
+			downUsed = emptyBelow
+		}
+		startIdx := i - (span - 1 - downUsed)
+		for k := startIdx; k < startIdx+span; k++ {
+			consumed[k] = true
+			if k != i {
+				res[areaIds[k]] = columnPlacement{covered: true}
+			}
+		}
+		res[id] = columnPlacement{
+			slot:  RenderSlot{Widget: w, Span: span, Row: startIdx + 1},
+			avail: avail,
+		}
 	}
-	if span > remaining {
-		span = remaining
-	}
-	if span < 1 {
-		span = 1
-	}
-	return span
+	return res
 }
 
 // ColumnAreas returns a side column's area ids top-to-bottom (for the config page).
 func (d *Device) ColumnAreas(col int) []int { return columnAreas[col] }
 
-// AreaCovered reports whether an area is hidden underneath a preceding widget that
-// spans into it (so the config page can blank it out).
+// AreaCovered reports whether an area is hidden underneath another widget that spans
+// into it (so the config page can blank it out).
 func (d *Device) AreaCovered(areaId int) bool {
-	col, ok := columnAreas[areaColumn(areaId)]
-	if !ok {
+	col := columnAreas[areaColumn(areaId)]
+	if col == nil {
 		return false
 	}
-	covered := 0
-	for i, id := range col {
-		if covered > 0 {
-			if id == areaId {
-				return true
-			}
-			covered--
-			continue
-		}
-		if id == areaId {
-			return false
-		}
-		if w := d.AreaWidget(id); w != nil {
-			covered = effectiveSpanFor(d.DeviceProfile.WidgetAreas[id], w, len(col)-i) - 1
-		}
-	}
-	return false
-}
-
-// areasRemainingInColumn returns how many areas remain from areaId to the bottom
-// of its column (1 when the area's column does not support spanning).
-func areasRemainingInColumn(areaId int) int {
-	areas, ok := columnAreas[areaColumn(areaId)]
-	if !ok {
-		return 1
-	}
-	for i, id := range areas {
-		if id == areaId {
-			return len(areas) - i
-		}
-	}
-	return 1
+	return d.computeColumnLayout(col)[areaId].covered
 }
 
 // AreaSpanChoices returns the valid span values for a sizable widget in an area
 // (nil for fixed-size widgets or when no room to grow), for the config UI.
 func (d *Device) AreaSpanChoices(areaId int) []int {
-	w := d.AreaWidget(areaId)
+	col := columnAreas[areaColumn(areaId)]
+	if col == nil {
+		return nil
+	}
+	p := d.computeColumnLayout(col)[areaId]
+	w := p.slot.Widget
 	if w == nil {
 		return nil
 	}
@@ -366,8 +399,8 @@ func (d *Device) AreaSpanChoices(areaId int) []int {
 		return nil // fixed-size widget (e.g. Weather) — not user-resizable
 	}
 	max := ceil
-	if r := areasRemainingInColumn(areaId); r < max {
-		max = r
+	if p.avail < max {
+		max = p.avail
 	}
 	if max <= floor {
 		return nil
@@ -381,11 +414,24 @@ func (d *Device) AreaSpanChoices(areaId int) []int {
 
 // AreaSpan returns the effective span for an area's widget (1 when unassigned).
 func (d *Device) AreaSpan(areaId int) int {
-	w := d.AreaWidget(areaId)
-	if w == nil {
+	col := columnAreas[areaColumn(areaId)]
+	if col == nil {
 		return 1
 	}
-	return effectiveSpanFor(d.DeviceProfile.WidgetAreas[areaId], w, areasRemainingInColumn(areaId))
+	if p := d.computeColumnLayout(col)[areaId]; p.slot.Widget != nil {
+		return p.slot.Span
+	}
+	return 1
+}
+
+// AreaSpanAvailable returns the largest span a widget could occupy in an area given
+// the free slots around it (0 when unassigned), used to validate span updates.
+func (d *Device) AreaSpanAvailable(areaId int) int {
+	col := columnAreas[areaColumn(areaId)]
+	if col == nil {
+		return 1
+	}
+	return d.computeColumnLayout(col)[areaId].avail
 }
 
 // AreaWidget resolves the widget assigned to an area, or nil when unassigned.
@@ -404,23 +450,12 @@ func (d *Device) AreaWidget(areaId int) *Widget {
 // areas covered by a preceding widget that spans multiple areas. Called from
 // templates to render the side columns.
 func (d *Device) SegmentSlots(areaIds ...int) []RenderSlot {
+	layout := d.computeColumnLayout(areaIds)
 	var slots []RenderSlot
-	if d.DeviceProfile == nil {
-		return slots
-	}
-	skip := 0
-	for idx, id := range areaIds {
-		if skip > 0 {
-			skip--
-			continue
+	for _, id := range areaIds {
+		if p := layout[id]; p.slot.Widget != nil {
+			slots = append(slots, p.slot)
 		}
-		widget := d.AreaWidget(id)
-		if widget == nil {
-			continue
-		}
-		span := effectiveSpanFor(d.DeviceProfile.WidgetAreas[id], widget, len(areaIds)-idx)
-		slots = append(slots, RenderSlot{Widget: widget, Span: span, Row: idx + 1})
-		skip = span - 1
 	}
 	return slots
 }
@@ -491,7 +526,7 @@ func (d *Device) UpdateWidgetSpan(areaId int, span int) uint8 {
 	if w == nil {
 		return 0
 	}
-	if span < w.spanFloor() || span > w.spanCeil() || span > areasRemainingInColumn(areaId) {
+	if span < w.spanFloor() || span > w.spanCeil() || span > d.AreaSpanAvailable(areaId) {
 		return 0
 	}
 

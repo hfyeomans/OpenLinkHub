@@ -43,7 +43,7 @@
         <section class="edge-segment edge-side">
             {{ range $slot := $device.SegmentSlots 1 12 2 }}
             <div class="edge-slot" style="grid-row: {{ $slot.Row }} / span {{ $slot.Span }};">
-                {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget) }}
+                {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget "Span" $slot.Span) }}
             </div>
             {{ end }}
         </section>
@@ -71,7 +71,7 @@
         <section class="edge-segment edge-side">
             {{ range $slot := $device.SegmentSlots 9 10 11 }}
             <div class="edge-slot" style="grid-row: {{ $slot.Row }} / span {{ $slot.Span }};">
-                {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget) }}
+                {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget "Span" $slot.Span) }}
             </div>
             {{ end }}
         </section>
