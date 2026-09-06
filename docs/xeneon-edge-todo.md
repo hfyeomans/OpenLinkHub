@@ -7,7 +7,11 @@ a time; newest context at the bottom of each item.
 - (none)
 
 ## Backlog (not started)
-- (none)
+- [ ] (optional, deferred) PSU software temp fan curve for HX1500i — add an
+      "Auto (temp)" fan mode in `src/devices/psuhid` that polls a temp sensor and
+      pushes manual fan speed via `dataSetFanSpeed` (mirrors iCUE's Temp Curve).
+      Today the PSU only supports Default (firmware curve) or fixed 40-100 %; the
+      `/temperature` profiles do NOT drive the PSU. User chose to keep Default for now.
 
 ## Done (this session)
 - [x] Fix side-column span rendering (Weather grow-up, GPU Monitor data-span)
