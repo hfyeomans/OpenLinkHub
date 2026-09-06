@@ -1209,6 +1209,18 @@ func updateXeneonWidget(w http.ResponseWriter, r *http.Request) {
 	resp.Send(w)
 }
 
+// getXeneonRevision returns the current config revision so the headless kiosk
+// can auto-reload when widgets/settings/media are changed (e.g. from a remote
+// device's config page).
+func getXeneonRevision(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   xeneonedge.ConfigRevision(),
+	}
+	resp.Send(w)
+}
+
 // getXeneonMedia handles media library listing
 func getXeneonMedia(w http.ResponseWriter, _ *http.Request) {
 	resp := &Response{
@@ -2698,6 +2710,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/gpuLoad/", http.MethodGet, getGpuLoadIndex)
 	handleFunc(r, "/api/gpuStats", http.MethodGet, getGpuStats)
 	handleFunc(r, "/api/gpuExtended", http.MethodGet, getGpuExtended)
+	handleFunc(r, "/api/xeneon/revision", http.MethodGet, getXeneonRevision)
 	handleFunc(r, "/api/xeneon/media", http.MethodGet, getXeneonMedia)
 	handleFunc(r, "/api/xeneon/media/", http.MethodGet, xeneonedge.PerformMediaServe)
 	handleFunc(r, "/api/storageTemp", http.MethodGet, getStorageTemperature)

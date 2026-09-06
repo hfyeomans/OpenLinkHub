@@ -15,7 +15,18 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 )
+
+// configRevision bumps whenever the widget layout, settings, or media library
+// change, so the headless kiosk can auto-reload without a keypress.
+var configRevision atomic.Int64
+
+// ConfigRevision returns the current config revision (for /api/xeneon/revision).
+func ConfigRevision() int64 { return configRevision.Load() }
+
+// bumpConfigRevision records a config change.
+func bumpConfigRevision() { configRevision.Add(1) }
 
 // DeviceProfile struct contains all device profile
 type DeviceProfile struct {
@@ -663,6 +674,7 @@ func (d *Device) saveDeviceProfile() {
 		logger.Log(logger.Fields{"error": err, "location": deviceProfile.Path}).Error("Unable to close file handle")
 	}
 
+	bumpConfigRevision()
 	d.loadDeviceProfiles() // Reload
 }
 

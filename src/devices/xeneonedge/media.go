@@ -87,6 +87,7 @@ func DeleteMediaFile(filename string) uint8 {
 		logger.Log(logger.Fields{"error": err, "file": filename}).Error("Unable to delete media file")
 		return 0
 	}
+	bumpConfigRevision()
 	return 1
 }
 
@@ -179,6 +180,8 @@ func PerformMediaUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to write file", http.StatusInternalServerError)
 		return
 	}
+
+	bumpConfigRevision()
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{

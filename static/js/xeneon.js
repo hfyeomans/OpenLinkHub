@@ -31,6 +31,30 @@ $(document).ready(function () {
         }
     });
 
+    // Auto-reload the kiosk when the config changes (e.g. widgets/settings edited
+    // from a remote device's config page). The headless Edge has no keyboard to
+    // press F5, so it watches a revision counter and reloads only when it moves.
+    (function watchConfigRevision() {
+        let baseline = null;
+        setInterval(function () {
+            $.ajax({
+                url: '/api/xeneon/revision',
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    if (response.status !== 1 || typeof response.data !== 'number') {
+                        return;
+                    }
+                    if (baseline === null) {
+                        baseline = response.data;
+                    } else if (response.data !== baseline) {
+                        location.reload();
+                    }
+                }
+            });
+        }, 3000);
+    })();
+
     // System clock
     if ($('#xeneon-clock').length) {
         function formatClock() {
