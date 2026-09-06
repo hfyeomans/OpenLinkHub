@@ -7,10 +7,7 @@ a time; newest context at the bottom of each item.
 - (none)
 
 ## Backlog (not started)
-- [ ] Push this session's commits to the fork (span fixes, embed widgets, Spotify)
-- [ ] Optionally: configure Daily Brief city / GitHub Repo Monitor repo defaults
-- [ ] Optionally: delete stale Edge profiles (`default`, `xeneon`)
-- [ ] Optionally: record Spotify redirect-URI / connect flow in deployment memory
+- (none)
 
 ## Done (this session)
 - [x] Fix side-column span rendering (Weather grow-up, GPU Monitor data-span)
@@ -20,3 +17,7 @@ a time; newest context at the bottom of each item.
 - [x] Multiple display profiles verified (Main / Media switch cleanly)
 - [x] Per-drive storage temperature ring gauges (Storage 1/2 Temp, catalog ids 24/25;
       `/api/storageTemp/clean/<i>`; verified live 35 °C / 34 °C)
+- [x] Pushed all commits to fork (origin/xeneon-edge)
+- [x] Embed defaults: Daily Brief city -> Boston, GitHub Repo Monitor -> hfyeomans/OpenLinkHub
+- [x] Deleted stale profile `xeneon` (`default` is protected/required by the daemon)
+- [x] Recorded Spotify + kiosk-restart + profile facts in deployment memory

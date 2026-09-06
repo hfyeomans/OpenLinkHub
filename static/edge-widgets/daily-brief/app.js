@@ -102,7 +102,7 @@
     }
 
     async function updateWeather() {
-        const city = String(setting("briefCity", "Paris")).trim();
+        const city = String(setting("briefCity", "Boston")).trim();
         const units = setting("briefUnits", "celsius");
         if (!city) return show("City Missing", "Set a city in iCUE settings.");
 
