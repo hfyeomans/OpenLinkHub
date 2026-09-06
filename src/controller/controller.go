@@ -23,6 +23,7 @@ import (
 	"OpenLinkHub/src/rgb"
 	"OpenLinkHub/src/scheduler"
 	"OpenLinkHub/src/server"
+	"OpenLinkHub/src/spotify"
 	"OpenLinkHub/src/stats"
 	"OpenLinkHub/src/systeminfo"
 	"OpenLinkHub/src/temperatures"
@@ -36,6 +37,7 @@ func Start() {
 	logger.Init()       // Logger
 	display.Init()      // Displays
 	media.Init()        // Media client
+	spotify.Init()      // Spotify Web API client
 	audio.Init()        // Audio
 	dashboard.Init()    // Dashboard
 	systeminfo.Init()   // Build system info
@@ -61,4 +63,5 @@ func Stop() {
 	inputmanager.Stop() // Cleanup virtual devices
 	audio.StopAudio()   // Virtual Audio
 	media.Stop()        // Media client
+	spotify.Stop()      // Spotify Web API client
 }

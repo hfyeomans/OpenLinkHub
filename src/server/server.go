@@ -23,6 +23,7 @@ import (
 	"OpenLinkHub/src/rgb"
 	"OpenLinkHub/src/scheduler"
 	"OpenLinkHub/src/server/requests"
+	"OpenLinkHub/src/spotify"
 	"OpenLinkHub/src/stats"
 	"OpenLinkHub/src/systeminfo"
 	"OpenLinkHub/src/systray"
@@ -965,6 +966,123 @@ func mediaPlaybackControl(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	resp.Send(w)
+}
+
+// getSpotifyStatus reports whether Spotify credentials/authorization are present.
+func getSpotifyStatus(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{Code: http.StatusOK, Status: 1, Data: spotify.GetStatus()}
+	resp.Send(w)
+}
+
+// getSpotifyAuthURL returns the one-time authorization URL and the redirect URI
+// the user must register on their Spotify app.
+func getSpotifyAuthURL(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{Code: http.StatusOK, Status: 0}
+	authURL, err := spotify.AuthURL()
+	if err != nil {
+		resp.Message = err.Error()
+	} else {
+		resp.Status = 1
+		resp.Data = map[string]string{"url": authURL, "redirectUri": spotify.RedirectURI()}
+	}
+	resp.Send(w)
+}
+
+// setSpotifyCredentials stores the Spotify app client id and secret.
+func setSpotifyCredentials(w http.ResponseWriter, r *http.Request) {
+	resp := &Response{Code: http.StatusOK, Status: 0}
+	var body struct {
+		ClientID     string `json:"clientId"`
+		ClientSecret string `json:"clientSecret"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		resp.Message = "Invalid request"
+	} else if err = spotify.SetCredentials(body.ClientID, body.ClientSecret); err != nil {
+		resp.Message = err.Error()
+	} else {
+		resp.Status = 1
+		resp.Message = "Spotify credentials saved"
+	}
+	resp.Send(w)
+}
+
+// spotifyExchange trades a pasted authorization code for a refresh token.
+func spotifyExchange(w http.ResponseWriter, r *http.Request) {
+	resp := &Response{Code: http.StatusOK, Status: 0}
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		resp.Message = "Invalid request"
+	} else if err = spotify.Exchange(body.Code); err != nil {
+		resp.Message = err.Error()
+	} else {
+		resp.Status = 1
+		resp.Message = "Spotify connected"
+	}
+	resp.Send(w)
+}
+
+// spotifyCallback captures the authorization code when the Spotify redirect is
+// reachable (e.g. via an SSH tunnel to this host) and completes the connection.
+func spotifyCallback(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+	message := "Spotify connected. You can close this tab and return to OpenLinkHub."
+	if code == "" {
+		message = "No authorization code was provided."
+	} else if err := spotify.Exchange(code); err != nil {
+		message = "Spotify connection failed: " + err.Error()
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte("<!doctype html><meta charset=utf-8><title>Spotify</title>" +
+		"<body style=\"font-family:sans-serif;background:#111;color:#eee;padding:40px\"><h2>" +
+		htmlEscape(message) + "</h2></body>"))
+}
+
+// spotifyDisconnect forgets the stored refresh token.
+func spotifyDisconnect(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{Code: http.StatusOK, Status: 0}
+	if err := spotify.Disconnect(); err != nil {
+		resp.Message = err.Error()
+	} else {
+		resp.Status = 1
+		resp.Message = "Spotify disconnected"
+	}
+	resp.Send(w)
+}
+
+// getSpotifyNowPlaying returns the user's current playback across all devices.
+func getSpotifyNowPlaying(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{Code: http.StatusOK, Status: 0}
+	np, err := spotify.GetNowPlaying()
+	if err != nil {
+		resp.Data = err.Error()
+	} else {
+		resp.Status = 1
+		resp.Data = np
+	}
+	resp.Send(w)
+}
+
+// spotifyControl issues a transport command (play/pause/next/previous).
+func spotifyControl(w http.ResponseWriter, r *http.Request) {
+	resp := &Response{Code: http.StatusOK, Status: 0}
+	action, valid := getVar("/api/spotify/control/", r)
+	if !valid {
+		resp.Message = "Invalid control action"
+	} else if err := spotify.Control(action); err != nil {
+		resp.Message = err.Error()
+	} else {
+		resp.Status = 1
+		resp.Message = "OK"
+	}
+	resp.Send(w)
+}
+
+// htmlEscape performs minimal escaping for the callback status page.
+func htmlEscape(s string) string {
+	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+	return r.Replace(s)
 }
 
 // updateDeviceEqualizers handles device equalizer update
@@ -2746,6 +2864,14 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/devices/mouse", http.MethodGet, getMouseDevice)
 	handleFunc(r, "/api/media/playback", http.MethodGet, getMediaPlayback)
 	handleFunc(r, "/api/media/", http.MethodGet, mediaPlaybackControl)
+	handleFunc(r, "/api/spotify/status", http.MethodGet, getSpotifyStatus)
+	handleFunc(r, "/api/spotify/authUrl", http.MethodGet, getSpotifyAuthURL)
+	handleFunc(r, "/api/spotify/nowPlaying", http.MethodGet, getSpotifyNowPlaying)
+	handleFunc(r, "/api/spotify/callback", http.MethodGet, spotifyCallback)
+	handleFunc(r, "/api/spotify/credentials", http.MethodPost, setSpotifyCredentials)
+	handleFunc(r, "/api/spotify/exchange", http.MethodPost, spotifyExchange)
+	handleFunc(r, "/api/spotify/disconnect", http.MethodPost, spotifyDisconnect)
+	handleFunc(r, "/api/spotify/control/", http.MethodPost, spotifyControl)
 
 	// POST
 	handleFunc(r, "/api/temperatures/new", http.MethodPost, newTemperatureProfile)

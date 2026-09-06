@@ -5455,3 +5455,77 @@ $(document).ready(function () {
         updateSlider();
     }
 });
+
+// XENEON EDGE — Spotify Web API setup (config page)
+$(function () {
+    if (!$('#spotifyConfig').length) return;
+
+    const notify = function (ok, msg) {
+        if (typeof toast === 'undefined') return;
+        ok ? toast.success(msg) : toast.warning(msg);
+    };
+
+    const refreshStatus = function () {
+        $.ajax({
+            url: '/api/spotify/status', method: 'GET', dataType: 'json',
+            success: function (r) {
+                if (r.status !== 1 || !r.data) return;
+                const d = r.data;
+                $('#spotifyRedirect').text(d.redirectUri || '');
+                let label = 'Not configured';
+                if (d.connected) label = 'Connected';
+                else if (d.hasCredentials) label = 'Credentials set — connect';
+                $('#spotifyStatus').text(label);
+            }
+        });
+    };
+
+    $('#spotifySaveCreds').on('click', function () {
+        $.ajax({
+            url: '/api/spotify/credentials', method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({
+                clientId: $('#spotifyClientId').val(),
+                clientSecret: $('#spotifyClientSecret').val()
+            }),
+            dataType: 'json',
+            success: function (r) { notify(r.status === 1, r.message); refreshStatus(); },
+            error: function () { notify(false, 'Request failed'); }
+        });
+    });
+
+    $('#spotifyGetAuth').on('click', function () {
+        $.ajax({
+            url: '/api/spotify/authUrl', method: 'GET', dataType: 'json',
+            success: function (r) {
+                if (r.status !== 1 || !r.data) { notify(false, r.message || 'Save credentials first'); return; }
+                $('#spotifyAuthArea').html(
+                    '<div class="settings-row"><a href="' + r.data.url + '" target="_blank" rel="noopener">' +
+                    'Open Spotify authorization</a></div>' +
+                    '<div class="settings-row" style="font-size:11px;opacity:.6">After approving, copy the <b>code</b> ' +
+                    'from the redirected URL and paste it below.</div>'
+                );
+            },
+            error: function () { notify(false, 'Request failed'); }
+        });
+    });
+
+    $('#spotifyConnect').on('click', function () {
+        $.ajax({
+            url: '/api/spotify/exchange', method: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ code: $('#spotifyCode').val() }),
+            dataType: 'json',
+            success: function (r) { notify(r.status === 1, r.message); if (r.status === 1) $('#spotifyCode').val(''); refreshStatus(); },
+            error: function () { notify(false, 'Request failed'); }
+        });
+    });
+
+    $('#spotifyDisconnect').on('click', function () {
+        $.ajax({
+            url: '/api/spotify/disconnect', method: 'POST', dataType: 'json',
+            success: function (r) { notify(r.status === 1, r.message); refreshStatus(); },
+            error: function () { notify(false, 'Request failed'); }
+        });
+    });
+
+    refreshStatus();
+});

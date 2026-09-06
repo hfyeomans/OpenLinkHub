@@ -114,6 +114,38 @@
                                     <button class="system-button center" id="xeneonMediaUpload">{{ .Lang "txtUpload" }}</button>
                                 </div>
                                 <div id="xeneonMediaList"></div>
+                            </div><br />
+
+                            <!-- Spotify -->
+                            <div class="settings-list" id="spotifyConfig">
+                                <div class="settings-row">
+                                    <span class="settings-label text-ellipsis">{{ .Lang "txtSpotify" }}</span>
+                                    <span class="settings-label text-ellipsis" id="spotifyStatus">…</span>
+                                </div>
+                                <div class="settings-row">
+                                    <input type="text" id="spotifyClientId" class="system-input compact" placeholder="{{ .Lang "txtSpotifyClientId" }}">
+                                </div>
+                                <div class="settings-row">
+                                    <input type="password" id="spotifyClientSecret" class="system-input compact" placeholder="{{ .Lang "txtSpotifyClientSecret" }}">
+                                </div>
+                                <div class="settings-row">
+                                    <button class="system-button center" id="spotifySaveCreds">{{ .Lang "txtSpotifySaveCreds" }}</button>
+                                </div>
+                                <div class="settings-row">
+                                    <span class="settings-label text-ellipsis" style="font-size:11px;opacity:.6">Redirect URI</span>
+                                    <span class="settings-label text-ellipsis" id="spotifyRedirect" style="font-size:11px"></span>
+                                </div>
+                                <div class="settings-row">
+                                    <button class="system-button center" id="spotifyGetAuth">{{ .Lang "txtSpotifyGetAuth" }}</button>
+                                </div>
+                                <div id="spotifyAuthArea"></div>
+                                <div class="settings-row">
+                                    <input type="text" id="spotifyCode" class="system-input compact" placeholder="{{ .Lang "txtSpotifyPasteCode" }}">
+                                </div>
+                                <div class="settings-row">
+                                    <button class="system-button center" id="spotifyConnect">{{ .Lang "txtSpotifyConnect" }}</button>
+                                    <button class="system-button danger center" id="spotifyDisconnect">{{ .Lang "txtSpotifyDisconnect" }}</button>
+                                </div>
                             </div>
                         </div>
                     </div>

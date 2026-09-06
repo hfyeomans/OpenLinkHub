@@ -850,3 +850,90 @@ code {
     height: 100%;
     opacity: 0.6;
 }
+
+/* Spotify widget */
+.spotify-panel .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+}
+.spotify-empty {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    opacity: 0.55;
+    font-size: 13px;
+    padding: 8px;
+}
+.spotify-now {
+    flex: 1 1 auto;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    min-height: 0;
+}
+.spotify-art {
+    flex: 0 0 auto;
+    width: clamp(64px, 26%, 180px);
+    aspect-ratio: 1 / 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+}
+.spotify-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.spotify-info {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.spotify-title {
+    font-size: clamp(14px, 2.2vh, 24px);
+    font-weight: 600;
+}
+.spotify-artist {
+    font-size: clamp(12px, 1.7vh, 17px);
+    opacity: 0.75;
+}
+.spotify-device {
+    font-size: 11px;
+    opacity: 0.5;
+}
+.spotify-progress {
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.15);
+    overflow: hidden;
+}
+.spotify-progress span {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: #1db954;
+    transition: width 0.5s linear;
+}
+.spotify-times {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    opacity: 0.6;
+}
+.spotify-controls {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+.spotify-btn {
+    min-width: 46px;
+    font-size: 16px;
+}

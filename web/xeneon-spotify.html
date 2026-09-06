@@ -1,0 +1,26 @@
+{{ define "xeneon-spotify" }}
+{{ $root := .Root }}
+{{ $widget := .Widget }}
+<div class="edge-panel spotify-panel" id="xeneon-spotify"{{ with .Span }} style="flex-grow: {{ . }};"{{ end }}>
+    <div class="card system-card"{{ if $widget.BackgroundColor }} style="background: {{ $widget.BackgroundColor }} !important;{{ if $widget.TextColor }} color: {{ $widget.TextColor }} !important;{{ end }}"{{ end }}>
+        <div class="card-body">
+            <div class="spotify-empty" id="spotifyEmpty">{{ $root.Lang "txtSpotifyIdle" }}</div>
+            <div class="spotify-now" id="spotifyNow" hidden>
+                <div class="spotify-art"><img id="spotifyArt" alt=""></div>
+                <div class="spotify-info">
+                    <div class="spotify-title text-ellipsis" id="spotifyTitle"></div>
+                    <div class="spotify-artist text-ellipsis" id="spotifyArtist"></div>
+                    <div class="spotify-progress"><span id="spotifyBar"></span></div>
+                    <div class="spotify-times"><span id="spotifyPos">0:00</span><span id="spotifyDur">0:00</span></div>
+                    <div class="spotify-device text-ellipsis" id="spotifyDevice"></div>
+                </div>
+            </div>
+            <div class="spotify-controls">
+                <button class="system-button spotify-btn" data-action="previous" aria-label="Previous">&#9198;</button>
+                <button class="system-button spotify-btn" id="spotifyPlay" data-action="play" aria-label="Play/Pause">&#9654;</button>
+                <button class="system-button spotify-btn" data-action="next" aria-label="Next">&#9197;</button>
+            </div>
+        </div>
+    </div>
+</div>
+{{ end }}

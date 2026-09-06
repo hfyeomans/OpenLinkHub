@@ -31,4 +31,4 @@ OpenLinkHub.spec.template
 *.tar.gz
 update.json
 update.json.sig
-.devcontainer/devcontainer-lock.json
+.devcontainer/devcontainer-lock.jsondatabase/spotify.json

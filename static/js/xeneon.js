@@ -256,6 +256,74 @@ $(document).ready(function () {
     }
 
     // Media Player
+    // Spotify widget (Spotify Web API — mirrors playback on any device)
+    if ($('#xeneon-spotify').length) {
+        const spFmt = function (ms) {
+            const s = Math.max(0, Math.floor((ms || 0) / 1000));
+            return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+        };
+        let spPlaying = false;
+        let spProgress = 0;   // last known progress (ms)
+        let spDuration = 0;
+        let spStamp = 0;      // Date.now() when the last poll landed
+
+        const spRenderProgress = function () {
+            let p = spProgress;
+            if (spPlaying) p += Date.now() - spStamp;
+            if (spDuration > 0) p = Math.min(p, spDuration);
+            const pct = spDuration > 0 ? (p / spDuration) * 100 : 0;
+            $('#spotifyBar').css('width', pct + '%');
+            $('#spotifyPos').text(spFmt(p));
+            $('#spotifyDur').text(spFmt(spDuration));
+        };
+
+        const spRender = function (d) {
+            if (!d || !d.title) {
+                $('#spotifyNow').attr('hidden', true);
+                $('#spotifyEmpty').removeAttr('hidden');
+                spPlaying = false;
+                return;
+            }
+            $('#spotifyEmpty').attr('hidden', true);
+            $('#spotifyNow').removeAttr('hidden');
+            $('#spotifyTitle').text(d.title);
+            $('#spotifyArtist').text(d.artist || '');
+            $('#spotifyDevice').text(d.device || '');
+            const $art = $('#spotifyArt');
+            if (d.artUrl && $art.attr('src') !== d.artUrl) $art.attr('src', d.artUrl);
+            spPlaying = !!d.playing;
+            spProgress = d.progressMs || 0;
+            spDuration = d.durationMs || 0;
+            spStamp = Date.now();
+            $('#spotifyPlay').html(spPlaying ? '&#9208;' : '&#9654;');
+            spRenderProgress();
+        };
+
+        const spPoll = function () {
+            $.ajax({
+                url: '/api/spotify/nowPlaying',
+                method: 'GET',
+                dataType: 'json',
+                success: function (r) { spRender(r.status === 1 ? r.data : null); },
+                error: function () { spRender(null); }
+            });
+        };
+
+        $('#xeneon-spotify').on('click', '.spotify-btn', function () {
+            let action = $(this).data('action');
+            if (action === 'play') action = spPlaying ? 'pause' : 'play';
+            $.ajax({
+                url: '/api/spotify/control/' + action,
+                method: 'POST',
+                complete: function () { setTimeout(spPoll, 400); }
+            });
+        });
+
+        spPoll();
+        setInterval(spPoll, 3000);
+        setInterval(spRenderProgress, 1000);
+    }
+
     if ($('#xeneon-media-player').length) {
         setInterval(function () {
             $.ajax({
