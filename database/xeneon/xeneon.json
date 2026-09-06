@@ -190,6 +190,78 @@
       ],
       "minSpan": 1,
       "maxSpan": 3
+    },
+    {
+      "id": 17,
+      "name": "World Clock",
+      "template": "xeneon-embed",
+      "columns": [
+        1,
+        3
+      ],
+      "url": "/static/edge-widgets/world-clock/",
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 18,
+      "name": "Focus Timer",
+      "template": "xeneon-embed",
+      "columns": [
+        1,
+        3
+      ],
+      "url": "/static/edge-widgets/focus-timer/",
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 19,
+      "name": "Countdowns",
+      "template": "xeneon-embed",
+      "columns": [
+        1,
+        3
+      ],
+      "url": "/static/edge-widgets/countdowns/",
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 20,
+      "name": "Habit Rings",
+      "template": "xeneon-embed",
+      "columns": [
+        1,
+        3
+      ],
+      "url": "/static/edge-widgets/habit-rings/",
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 21,
+      "name": "Daily Brief",
+      "template": "xeneon-embed",
+      "columns": [
+        1,
+        3
+      ],
+      "url": "/static/edge-widgets/daily-brief/",
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 22,
+      "name": "GitHub Repo Monitor",
+      "template": "xeneon-embed",
+      "columns": [
+        1,
+        3
+      ],
+      "url": "/static/edge-widgets/github-repo-monitor/",
+      "minSpan": 1,
+      "maxSpan": 3
     }
   ]
 }

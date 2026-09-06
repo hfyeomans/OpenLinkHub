@@ -1,0 +1,14 @@
+{{ define "xeneon-embed" }}
+{{ $widget := .Widget }}
+<div class="edge-panel media-panel" id="xeneon-embed-{{ $widget.Id }}"{{ with .Span }} style="flex-grow: {{ . }};"{{ end }}>
+    <div class="card system-card">
+        <div class="card-body">
+            {{ if $widget.Url }}
+            <iframe class="weburl-frame" src="{{ $widget.Url }}" loading="lazy"></iframe>
+            {{ else }}
+            <div class="media-placeholder">{{ .Root.Lang "txtNoUrlConfigured" }}</div>
+            {{ end }}
+        </div>
+    </div>
+</div>
+{{ end }}

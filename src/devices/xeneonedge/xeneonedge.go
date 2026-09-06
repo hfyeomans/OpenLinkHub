@@ -896,6 +896,11 @@ func (d *Device) mergeCatalogWidgets(pf *DeviceProfile) {
 				pf.Widgets[i].GpuIndex = catalog.GpuIndex
 				pf.Widgets[i].MinSpan = catalog.MinSpan
 				pf.Widgets[i].MaxSpan = catalog.MaxSpan
+				// Embedded widgets carry a fixed catalog URL (not user-editable),
+				// so keep it in sync; the Web URL widget's URL stays user-owned.
+				if catalog.Template == "xeneon-embed" {
+					pf.Widgets[i].Url = catalog.Url
+				}
 				existing = true
 				break
 			}
