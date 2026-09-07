@@ -55,6 +55,7 @@ type Web struct {
 	SystemService     bool
 	StorageTemp       []temperatures.StorageTemperatures
 	BuildInfo         *version.BuildInfo
+	AssetVer          string
 	Dashboard         dashboard.Dashboard
 	Languages         map[string]language.Language
 	LanguageCode      string
