@@ -370,39 +370,35 @@ func (d *Device) computeColumnLayout(areaIds []int) map[int]columnPlacement {
 	return res
 }
 
-// ColumnAreas returns a side column's area ids top-to-bottom (for the config page).
-func (d *Device) ColumnAreas(col int) []int { return columnAreas[col] }
+// placement resolves an area's column placement (widget/span/row/avail/covered).
+// ok is false when the area is not in a spannable side column.
+func (d *Device) placement(areaId int) (columnPlacement, bool) {
+	col := columnAreas[areaColumn(areaId)]
+	if col == nil {
+		return columnPlacement{}, false
+	}
+	return d.computeColumnLayout(col)[areaId], true
+}
 
 // AreaCovered reports whether an area is hidden underneath another widget that spans
 // into it (so the config page can blank it out).
 func (d *Device) AreaCovered(areaId int) bool {
-	col := columnAreas[areaColumn(areaId)]
-	if col == nil {
-		return false
-	}
-	return d.computeColumnLayout(col)[areaId].covered
+	p, ok := d.placement(areaId)
+	return ok && p.covered
 }
 
 // AreaSpanChoices returns the valid span values for a sizable widget in an area
 // (nil for fixed-size widgets or when no room to grow), for the config UI.
 func (d *Device) AreaSpanChoices(areaId int) []int {
-	col := columnAreas[areaColumn(areaId)]
-	if col == nil {
+	p, ok := d.placement(areaId)
+	if !ok || p.slot.Widget == nil {
 		return nil
 	}
-	p := d.computeColumnLayout(col)[areaId]
-	w := p.slot.Widget
-	if w == nil {
-		return nil
-	}
-	floor, ceil := w.spanFloor(), w.spanCeil()
+	floor, ceil := p.slot.Widget.spanFloor(), p.slot.Widget.spanCeil()
 	if ceil <= floor {
 		return nil // fixed-size widget (e.g. Weather) — not user-resizable
 	}
-	max := ceil
-	if p.avail < max {
-		max = p.avail
-	}
+	max := p.avail // always <= ceil for a sizable widget
 	if max <= floor {
 		return nil
 	}
@@ -415,11 +411,7 @@ func (d *Device) AreaSpanChoices(areaId int) []int {
 
 // AreaSpan returns the effective span for an area's widget (1 when unassigned).
 func (d *Device) AreaSpan(areaId int) int {
-	col := columnAreas[areaColumn(areaId)]
-	if col == nil {
-		return 1
-	}
-	if p := d.computeColumnLayout(col)[areaId]; p.slot.Widget != nil {
+	if p, ok := d.placement(areaId); ok && p.slot.Widget != nil {
 		return p.slot.Span
 	}
 	return 1
@@ -428,11 +420,10 @@ func (d *Device) AreaSpan(areaId int) int {
 // AreaSpanAvailable returns the largest span a widget could occupy in an area given
 // the free slots around it (0 when unassigned), used to validate span updates.
 func (d *Device) AreaSpanAvailable(areaId int) int {
-	col := columnAreas[areaColumn(areaId)]
-	if col == nil {
-		return 1
+	if p, ok := d.placement(areaId); ok {
+		return p.avail
 	}
-	return d.computeColumnLayout(col)[areaId].avail
+	return 1
 }
 
 // AreaWidget resolves the widget assigned to an area, or nil when unassigned.
@@ -569,10 +560,10 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 
 	if settings.City != nil {
 		city := strings.TrimSpace(*settings.City)
-		if len(city) < 1 || len(city) > 64 {
+		if len(city) > 64 {
 			return 0
 		}
-		widget.City = city
+		widget.City = city // empty is allowed (clears a manual city, e.g. for AutoWeather)
 	}
 	if settings.Country != nil {
 		country := strings.TrimSpace(*settings.Country)
@@ -714,15 +705,6 @@ func (d *Device) SaveUserProfile(profileName string) uint8 {
 // getManufacturer will return device manufacturer
 func (d *Device) getDebugMode() {
 	d.Debug = config.GetConfig().Debug
-}
-
-func (d *Device) getWidget(widgetId int) *Widget {
-	for _, widget := range d.Widgets {
-		if widget.Id == widgetId {
-			return &widget
-		}
-	}
-	return nil
 }
 
 // saveDeviceProfile will save device profile for persistent configuration

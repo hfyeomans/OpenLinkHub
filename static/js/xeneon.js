@@ -48,11 +48,12 @@ $(document).ready(function () {
                     if (baseline === null) {
                         baseline = response.data;
                     } else if (response.data !== baseline) {
+                        baseline = response.data; // avoid a second reload racing the navigation
                         location.reload();
                     }
                 }
             });
-        }, 3000);
+        }, 1000);
     })();
 
     // System clock
@@ -625,113 +626,34 @@ $(document).ready(function () {
         if (payload.hotspot != null) $widget.find('.js-hotspot').text(Math.round(payload.hotspot) + '°C');
     };
 
-    // CPU Temp
-    if ($('#xeneon-cpu-temp').length) {
-        const $widget = $("#xeneon-cpu-temp");
-        setInterval(function () {
-            $.ajax({
-                url: '/api/cpuTemp/clean',
-                method: 'GET',
-                dataType: 'json',
-                success: function (response) {
-                    if (response.status === 1 && response.data) {
-                        updateRing($widget, response.data, $widget.data('max'));
-                        setThermalValue($widget, response.data, $widget.data('max'));
-                    }
-                },
-                error: function () {
-                    console.error('Failed to get cpu temperature');
-                }
-            });
-        }, 1000);
+    // Ring gauges (cpu/gpu/storage temp+load) — one poller drives them all.
+    // selector may be a single #id or a class matching one widget per index
+    // (indexAttr appended to url). valid(data) optionally filters out sentinel values.
+    function pollRingWidget(opts) {
+        $(opts.selector).each(function () {
+            const $widget = $(this);
+            const url = opts.indexAttr ? opts.url + (parseInt($widget.data(opts.indexAttr)) || 0) : opts.url;
+            setInterval(function () {
+                $.ajax({
+                    url: url,
+                    method: 'GET',
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.status === 1 && response.data != null && (!opts.valid || opts.valid(response.data))) {
+                            updateRing($widget, response.data, $widget.data('max'));
+                        }
+                    },
+                    error: function () {}
+                });
+            }, opts.interval);
+        });
     }
 
-    // CPU Load
-    if ($('#xeneon-cpu-load').length) {
-        const $widget = $("#xeneon-cpu-load");
-        setInterval(function () {
-            $.ajax({
-                url: '/api/cpuLoad',
-                method: 'GET',
-                dataType: 'json',
-                success: function (response) {
-                    if (response.status === 1 && response.data) {
-                        updateRing($widget, response.data, $widget.data('max'));
-                        setThermalValue($widget, response.data, $widget.data('max'));
-                    }
-                },
-                error: function () {
-                    console.error('Failed to get cpu load');
-                }
-            });
-        }, 1000);
-    }
-
-    // GPU Temp (one widget per GPU, index via data-gpu-index)
-    $('.gpu-temp-widget').each(function () {
-        const $widget = $(this);
-        const gpuIndex = parseInt($widget.data('gpu-index')) || 0;
-        setInterval(function () {
-            $.ajax({
-                url: '/api/gpuTemp/clean/' + gpuIndex,
-                method: 'GET',
-                dataType: 'json',
-                success: function (response) {
-                    if (response.status === 1 && response.data != null) {
-                        updateRing($widget, response.data, $widget.data('max'));
-                        setThermalValue($widget, response.data, $widget.data('max'));
-                    }
-                },
-                error: function () {
-                    console.error('Failed to get gpu temperature');
-                }
-            });
-        }, 1000);
-    });
-
-    // Storage Temp (one widget per drive, index via data-storage-index)
-    $('.storage-temp-widget').each(function () {
-        const $widget = $(this);
-        const storageIndex = parseInt($widget.data('storage-index')) || 0;
-        setInterval(function () {
-            $.ajax({
-                url: '/api/storageTemp/clean/' + storageIndex,
-                method: 'GET',
-                dataType: 'json',
-                success: function (response) {
-                    if (response.status === 1 && response.data != null && response.data >= 0) {
-                        updateRing($widget, response.data, $widget.data('max'));
-                        setThermalValue($widget, response.data, $widget.data('max'));
-                    }
-                },
-                error: function () {
-                    console.error('Failed to get storage temperature');
-                }
-            });
-        }, 2000);
-    });
-
-    // GPU Load (one widget per GPU, index via data-gpu-index)
-    $('.gpu-load-widget').each(function () {
-        const $widget = $(this);
-        const gpuIndex = parseInt($widget.data('gpu-index')) || 0;
-        setInterval(function () {
-            $.ajax({
-                url: '/api/gpuLoad/' + gpuIndex,
-                method: 'GET',
-                dataType: 'json',
-                success: function (response) {
-                    if (response.status === 1 && response.data != null) {
-                        updateRing($widget, response.data, $widget.data('max'));
-                        setThermalValue($widget, response.data, $widget.data('max'));
-                    }
-                },
-                error: function () {
-                    console.error('Failed to get gpu load');
-                }
-            });
-        }, 1000);
-    });
+    pollRingWidget({ selector: '#xeneon-cpu-temp', url: '/api/cpuTemp/clean', interval: 1000 });
+    pollRingWidget({ selector: '#xeneon-cpu-load', url: '/api/cpuLoad', interval: 1000 });
+    pollRingWidget({ selector: '.gpu-temp-widget', indexAttr: 'gpu-index', url: '/api/gpuTemp/clean/', interval: 1000 });
+    pollRingWidget({ selector: '.gpu-load-widget', indexAttr: 'gpu-index', url: '/api/gpuLoad/', interval: 1000 });
+    pollRingWidget({ selector: '.storage-temp-widget', indexAttr: 'storage-index', url: '/api/storageTemp/clean/', interval: 2000, valid: function (v) { return v >= 0; } });
 
     // PSU status
     if ($('#xeneon-psu-status').length) {
@@ -900,6 +822,12 @@ $(document).ready(function () {
             return v < 0 ? '—' : v + (suffix || '');
         }
 
+        const esc = function (s) {
+            return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+            });
+        };
+
         function renderGpuCards(stats) {
             let html = '<div class="nvtop-gpus">';
             stats.forEach(function (g) {
@@ -911,7 +839,7 @@ $(document).ready(function () {
                 html +=
                     '<div class="nvtop-gpu">' +
                     '<div class="nvtop-devline">' +
-                    '<span class="nvtop-name">GPU' + g.index + ' ' + (g.name || '').replace(/NVIDIA\s+/i, '') + '</span>' +
+                    '<span class="nvtop-name">GPU' + g.index + ' ' + esc((g.name || '').replace(/NVIDIA\s+/i, '')) + '</span>' +
                     '<span class="nvtop-pcie">' + pcie + io + '</span>' +
                     '</div>' +
                     '<div class="nvtop-statline">' +
@@ -975,7 +903,7 @@ $(document).ready(function () {
                     '<td>' + p.pid + '</td>' +
                     '<td class="user"></td>' +
                     '<td class="num">' + p.gpuIndex + '</td>' +
-                    '<td>' + p.type + '</td>' +
+                    '<td>' + esc(p.type) + '</td>' +
                     '<td class="num">' + (p.gpu >= 0 ? p.gpu + '%' : '-') + '</td>' +
                     '<td class="num">' + p.memory + 'M</td>' +
                     '<td class="num">' + Math.round(p.cpu) + '%</td>' +

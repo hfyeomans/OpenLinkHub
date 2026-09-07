@@ -32,6 +32,7 @@ import (
 	"OpenLinkHub/src/version"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"strconv"
 	"strings"
@@ -169,55 +170,40 @@ func getGpuTemperatureClean(w http.ResponseWriter, _ *http.Request) {
 	resp.Send(w)
 }
 
-// getGpuIndexVar will parse and validate a gpu index path variable
-func getGpuIndexVar(path string, r *http.Request) (int, bool) {
-	value, valid := getVar(path, r)
-	if !valid {
-		return 0, false
-	}
-	index, err := strconv.Atoi(value)
-	if err != nil {
-		return 0, false
-	}
-	if _, ok := systeminfo.GetInfo().GPU[index]; !ok {
-		return 0, false
-	}
-	return index, true
+// gpuIndexValid reports whether index refers to a known GPU.
+func gpuIndexValid(index int) bool {
+	_, ok := systeminfo.GetInfo().GPU[index]
+	return ok
 }
 
-// getGpuTemperatureCleanIndex will return gpu temperature in float value for a specific gpu
-func getGpuTemperatureCleanIndex(w http.ResponseWriter, r *http.Request) {
-	index, valid := getGpuIndexVar("/api/gpuTemp/clean/", r)
-	if !valid {
-		resp := &Response{
-			Code:    http.StatusOK,
-			Status:  0,
-			Message: language.GetValue("txtUnableToValidateRequest"),
+// indexedSensorHandler builds a handler that parses an index from the request path,
+// optionally validates it, and returns get(index). get's bool result reports whether
+// the value is valid (e.g. a negative storage temperature means "no such drive").
+func indexedSensorHandler(prefix string, validIndex func(int) bool, get func(int) (interface{}, bool)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		value, ok := getVar(prefix, r)
+		index, err := strconv.Atoi(value)
+		if !ok || err != nil || (validIndex != nil && !validIndex(index)) {
+			(&Response{Code: http.StatusOK, Status: 0, Message: language.GetValue("txtUnableToValidateRequest")}).Send(w)
+			return
 		}
-		resp.Send(w)
-		return
+		data, valid := get(index)
+		if !valid {
+			(&Response{Code: http.StatusOK, Status: 0, Message: language.GetValue("txtUnableToValidateRequest")}).Send(w)
+			return
+		}
+		(&Response{Code: http.StatusOK, Status: 1, Data: data}).Send(w)
 	}
-	resp := &Response{
-		Code:   http.StatusOK,
-		Status: 1,
-		Data:   temperatures.GetGpuTemperatureIndex(index),
-	}
-	resp.Send(w)
 }
+
+// getGpuTemperatureCleanIndex returns gpu temperature for a specific gpu.
+var getGpuTemperatureCleanIndex = indexedSensorHandler("/api/gpuTemp/clean/", gpuIndexValid,
+	func(i int) (interface{}, bool) { return temperatures.GetGpuTemperatureIndex(i), true })
 
 // getStorageTemperatureCleanIndex returns the live temperature of the Nth storage
-// device for the Edge storage ring widget.
-func getStorageTemperatureCleanIndex(w http.ResponseWriter, r *http.Request) {
-	value, valid := getVar("/api/storageTemp/clean/", r)
-	index, err := strconv.Atoi(value)
-	if !valid || err != nil {
-		resp := &Response{Code: http.StatusOK, Status: 0, Message: language.GetValue("txtUnableToValidateRequest")}
-		resp.Send(w)
-		return
-	}
-	resp := &Response{Code: http.StatusOK, Status: 1, Data: systeminfo.GetStorageTemperatureIndex(index)}
-	resp.Send(w)
-}
+// device for the Edge storage ring widget (invalid index -> negative -> error).
+var getStorageTemperatureCleanIndex = indexedSensorHandler("/api/storageTemp/clean/", nil,
+	func(i int) (interface{}, bool) { v := systeminfo.GetStorageTemperatureIndex(i); return v, v >= 0 })
 
 // getGpuStats will return fast per-GPU telemetry for the GPU Monitor widget
 func getGpuStats(w http.ResponseWriter, _ *http.Request) {
@@ -242,25 +228,9 @@ func getGpuExtended(w http.ResponseWriter, _ *http.Request) {
 	resp.Send(w)
 }
 
-// getGpuLoadIndex will return gpu utilization for a specific gpu
-func getGpuLoadIndex(w http.ResponseWriter, r *http.Request) {
-	index, valid := getGpuIndexVar("/api/gpuLoad/", r)
-	if !valid {
-		resp := &Response{
-			Code:    http.StatusOK,
-			Status:  0,
-			Message: language.GetValue("txtUnableToValidateRequest"),
-		}
-		resp.Send(w)
-		return
-	}
-	resp := &Response{
-		Code:   http.StatusOK,
-		Status: 1,
-		Data:   systeminfo.GetGPUUtilizationIndex(index),
-	}
-	resp.Send(w)
-}
+// getGpuLoadIndex returns gpu utilization for a specific gpu.
+var getGpuLoadIndex = indexedSensorHandler("/api/gpuLoad/", gpuIndexValid,
+	func(i int) (interface{}, bool) { return systeminfo.GetGPUUtilizationIndex(i), true })
 
 // getStorageTemperature will return current storage temperature
 func getStorageTemperature(w http.ResponseWriter, _ *http.Request) {
@@ -1010,12 +980,12 @@ func setSpotifyCredentials(w http.ResponseWriter, r *http.Request) {
 		ClientSecret string `json:"clientSecret"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		resp.Message = "Invalid request"
+		resp.Message = language.GetValue("txtUnableToValidateRequest")
 	} else if err = spotify.SetCredentials(body.ClientID, body.ClientSecret); err != nil {
 		resp.Message = err.Error()
 	} else {
 		resp.Status = 1
-		resp.Message = "Spotify credentials saved"
+		resp.Message = language.GetValue("txtSpotifyCredentialsSaved")
 	}
 	resp.Send(w)
 }
@@ -1027,12 +997,12 @@ func spotifyExchange(w http.ResponseWriter, r *http.Request) {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		resp.Message = "Invalid request"
+		resp.Message = language.GetValue("txtUnableToValidateRequest")
 	} else if err = spotify.Exchange(body.Code); err != nil {
 		resp.Message = err.Error()
 	} else {
 		resp.Status = 1
-		resp.Message = "Spotify connected"
+		resp.Message = language.GetValue("txtSpotifyConnected")
 	}
 	resp.Send(w)
 }
@@ -1050,7 +1020,7 @@ func spotifyCallback(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte("<!doctype html><meta charset=utf-8><title>Spotify</title>" +
 		"<body style=\"font-family:sans-serif;background:#111;color:#eee;padding:40px\"><h2>" +
-		htmlEscape(message) + "</h2></body>"))
+		html.EscapeString(message) + "</h2></body>"))
 }
 
 // spotifyDisconnect forgets the stored refresh token.
@@ -1060,7 +1030,7 @@ func spotifyDisconnect(w http.ResponseWriter, _ *http.Request) {
 		resp.Message = err.Error()
 	} else {
 		resp.Status = 1
-		resp.Message = "Spotify disconnected"
+		resp.Message = language.GetValue("txtSpotifyDisconnected")
 	}
 	resp.Send(w)
 }
@@ -1070,7 +1040,7 @@ func getSpotifyNowPlaying(w http.ResponseWriter, _ *http.Request) {
 	resp := &Response{Code: http.StatusOK, Status: 0}
 	np, err := spotify.GetNowPlaying()
 	if err != nil {
-		resp.Data = err.Error()
+		resp.Message = err.Error()
 	} else {
 		resp.Status = 1
 		resp.Data = np
@@ -1083,7 +1053,7 @@ func spotifyControl(w http.ResponseWriter, r *http.Request) {
 	resp := &Response{Code: http.StatusOK, Status: 0}
 	action, valid := getVar("/api/spotify/control/", r)
 	if !valid {
-		resp.Message = "Invalid control action"
+		resp.Message = language.GetValue("txtSpotifyInvalidAction")
 	} else if err := spotify.Control(action); err != nil {
 		resp.Message = err.Error()
 	} else {
@@ -1091,12 +1061,6 @@ func spotifyControl(w http.ResponseWriter, r *http.Request) {
 		resp.Message = "OK"
 	}
 	resp.Send(w)
-}
-
-// htmlEscape performs minimal escaping for the callback status page.
-func htmlEscape(s string) string {
-	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
-	return r.Replace(s)
 }
 
 // updateDeviceEqualizers handles device equalizer update

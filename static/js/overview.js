@@ -1765,60 +1765,15 @@ $(document).ready(function () {
         });
     });
 
-    $('.widget-area-select').on('change', function () {
-        const deviceId = $("#deviceId").val();
-        const areaId = parseInt($(this).data('area'));
-        const widgetId = parseInt($(this).val());
-
-        if (isNaN(areaId) || isNaN(widgetId)) {
-            return false;
-        }
-
-        const pf = {};
-        pf["deviceId"] = deviceId;
-        pf["areaId"] = areaId;
-        pf["widgetId"] = widgetId;
-
-        const json = JSON.stringify(pf, null, 2);
-
+    // postWidgetChange POSTs a widget-area/-span change and reloads on success.
+    function postWidgetChange(url, payload) {
+        payload.deviceId = $("#deviceId").val();
         $.ajax({
-            url: '/api/xeneon/widgetArea',
+            url: url,
             type: 'POST',
-            data: json,
+            data: JSON.stringify(payload),
             cache: false,
-            success: function(response) {
-                try {
-                    if (response.status === 1) {
-                        location.reload();
-                    } else {
-                        toast.warning(response.message);
-                    }
-                } catch (err) {
-                    toast.warning(response.message);
-                }
-            }
-        });
-    });
-
-    $('.widget-span-select').on('change', function () {
-        const areaId = parseInt($(this).data('area'));
-        const span = parseInt($(this).val());
-
-        if (isNaN(areaId) || isNaN(span)) {
-            return false;
-        }
-
-        const pf = {};
-        pf["deviceId"] = $("#deviceId").val();
-        pf["areaId"] = areaId;
-        pf["widgetSpan"] = span;
-
-        $.ajax({
-            url: '/api/xeneon/widgetSpan',
-            type: 'POST',
-            data: JSON.stringify(pf),
-            cache: false,
-            success: function(response) {
+            success: function (response) {
                 if (response.status === 1) {
                     location.reload();
                 } else {
@@ -1826,6 +1781,24 @@ $(document).ready(function () {
                 }
             }
         });
+    }
+
+    $('.widget-area-select').on('change', function () {
+        const areaId = parseInt($(this).data('area'));
+        const widgetId = parseInt($(this).val());
+        if (isNaN(areaId) || isNaN(widgetId)) {
+            return false;
+        }
+        postWidgetChange('/api/xeneon/widgetArea', { areaId: areaId, widgetId: widgetId });
+    });
+
+    $('.widget-span-select').on('change', function () {
+        const areaId = parseInt($(this).data('area'));
+        const span = parseInt($(this).val());
+        if (isNaN(areaId) || isNaN(span)) {
+            return false;
+        }
+        postWidgetChange('/api/xeneon/widgetSpan', { areaId: areaId, widgetSpan: span });
     });
 
     $('.configureWidget').on('click', function () {
@@ -2015,6 +1988,7 @@ $(document).ready(function () {
 
             modal.on('hidden.bs.modal', function () {
                 modal.data('bs.modal', null);
+                modal.remove();
             })
 
             modal.on('shown.bs.modal', function () {
@@ -2067,7 +2041,8 @@ $(document).ready(function () {
                         const latitude = parseFloat(modal.find('#widgetLatitude').val());
                         const longitude = parseFloat(modal.find('#widgetLongitude').val());
 
-                        if (city.length < 1 || isNaN(latitude) || isNaN(longitude)) {
+                        if (city.length < 1 || isNaN(latitude) || isNaN(longitude) ||
+                            latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
                             toast.warning(i18n.t('txtUnableToUpdateWidget', 'Unable to save widget settings'));
                             return false;
                         }
@@ -5472,9 +5447,9 @@ $(function () {
                 if (r.status !== 1 || !r.data) return;
                 const d = r.data;
                 $('#spotifyRedirect').text(d.redirectUri || '');
-                let label = 'Not configured';
-                if (d.connected) label = 'Connected';
-                else if (d.hasCredentials) label = 'Credentials set — connect';
+                let label = i18n.t('txtSpotifyStatusNone', 'Not configured');
+                if (d.connected) label = i18n.t('txtSpotifyStatusConnected', 'Connected');
+                else if (d.hasCredentials) label = i18n.t('txtSpotifyStatusReady', 'Credentials set — connect');
                 $('#spotifyStatus').text(label);
             }
         });

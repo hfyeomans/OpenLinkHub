@@ -2542,136 +2542,58 @@ func ProcessDeleteUserProfile(r *http.Request) *Payload {
 	return &Payload{Message: language.GetValue("txtUnableToDeleteProfile"), Code: http.StatusOK, Status: 0}
 }
 
+// processWidgetCall decodes a Xeneon widget request, validates the device and the
+// request-specific predicate, dispatches the device method, and maps the result to a
+// Payload. The three Xeneon widget endpoints differ only in predicate/method/args/keys.
+func processWidgetCall(r *http.Request, valid func(*Payload) bool, method string, args func(*Payload) []interface{}, okKey, failKey string) *Payload {
+	req := &Payload{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Log(map[string]interface{}{"error": err}).Error("Unable to decode JSON")
+		return &Payload{Message: language.GetValue("txtUnableToValidateRequest"), Code: http.StatusOK, Status: 0}
+	}
+
+	if len(req.DeviceId) == 0 || !common.AlphanumericDashRegex.MatchString(req.DeviceId) || devices.GetDevice(req.DeviceId) == nil {
+		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
+	}
+
+	if !valid(req) {
+		return &Payload{Message: language.GetValue(failKey), Code: http.StatusOK, Status: 0}
+	}
+
+	results := devices.CallDeviceMethod(req.DeviceId, method, args(req)...)
+	if len(results) > 0 && results[0].Uint() == 1 {
+		return &Payload{Message: language.GetValue(okKey), Code: http.StatusOK, Status: 1}
+	}
+	return &Payload{Message: language.GetValue(failKey), Code: http.StatusOK, Status: 0}
+}
+
 // ProcessXeneonWidgetArea will process POST request from a client for widget area assignment
 func ProcessXeneonWidgetArea(r *http.Request) *Payload {
-	req := &Payload{}
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		logger.Log(map[string]interface{}{"error": err}).Error("Unable to decode JSON")
-		return &Payload{
-			Message: language.GetValue("txtUnableToValidateRequest"),
-			Code:    http.StatusOK,
-			Status:  0,
-		}
-	}
-
-	if len(req.DeviceId) == 0 {
-		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
-	}
-
-	if !common.AlphanumericDashRegex.MatchString(req.DeviceId) {
-		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
-	}
-
-	if devices.GetDevice(req.DeviceId) == nil {
-		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
-	}
-
-	if req.AreaId < 1 || req.WidgetId < 0 {
-		return &Payload{Message: language.GetValue("txtUnableToUpdateWidgetArea"), Code: http.StatusOK, Status: 0}
-	}
-
-	results := devices.CallDeviceMethod(
-		req.DeviceId,
+	return processWidgetCall(r,
+		func(req *Payload) bool { return req.AreaId >= 1 && req.WidgetId >= 0 },
 		"UpdateWidgetArea",
-		req.AreaId,
-		req.WidgetId,
-	)
-
-	if len(results) > 0 {
-		if results[0].Uint() == 1 {
-			return &Payload{Message: language.GetValue("txtWidgetAreaUpdated"), Code: http.StatusOK, Status: 1}
-		}
-	}
-	return &Payload{Message: language.GetValue("txtUnableToUpdateWidgetArea"), Code: http.StatusOK, Status: 0}
+		func(req *Payload) []interface{} { return []interface{}{req.AreaId, req.WidgetId} },
+		"txtWidgetAreaUpdated", "txtUnableToUpdateWidgetArea")
 }
 
 // ProcessXeneonWidgetSpan will process POST request from a client for widget span change
 func ProcessXeneonWidgetSpan(r *http.Request) *Payload {
-	req := &Payload{}
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		logger.Log(map[string]interface{}{"error": err}).Error("Unable to decode JSON")
-		return &Payload{
-			Message: language.GetValue("txtUnableToValidateRequest"),
-			Code:    http.StatusOK,
-			Status:  0,
-		}
-	}
-
-	if len(req.DeviceId) == 0 {
-		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
-	}
-
-	if !common.AlphanumericDashRegex.MatchString(req.DeviceId) {
-		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
-	}
-
-	if devices.GetDevice(req.DeviceId) == nil {
-		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
-	}
-
-	if req.AreaId < 1 || req.WidgetSpan < 1 {
-		return &Payload{Message: language.GetValue("txtUnableToUpdateWidgetArea"), Code: http.StatusOK, Status: 0}
-	}
-
-	results := devices.CallDeviceMethod(
-		req.DeviceId,
+	return processWidgetCall(r,
+		func(req *Payload) bool { return req.AreaId >= 1 && req.WidgetSpan >= 1 },
 		"UpdateWidgetSpan",
-		req.AreaId,
-		req.WidgetSpan,
-	)
-
-	if len(results) > 0 {
-		if results[0].Uint() == 1 {
-			return &Payload{Message: language.GetValue("txtWidgetAreaUpdated"), Code: http.StatusOK, Status: 1}
-		}
-	}
-	return &Payload{Message: language.GetValue("txtUnableToUpdateWidgetArea"), Code: http.StatusOK, Status: 0}
+		func(req *Payload) []interface{} { return []interface{}{req.AreaId, req.WidgetSpan} },
+		"txtWidgetAreaUpdated", "txtUnableToUpdateWidgetArea")
 }
 
 // ProcessXeneonWidgetSettings will process PUT request from a client for widget configuration
 func ProcessXeneonWidgetSettings(r *http.Request) *Payload {
-	req := &Payload{}
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		logger.Log(map[string]interface{}{"error": err}).Error("Unable to decode JSON")
-		return &Payload{
-			Message: language.GetValue("txtUnableToValidateRequest"),
-			Code:    http.StatusOK,
-			Status:  0,
-		}
-	}
-
-	if len(req.DeviceId) == 0 {
-		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
-	}
-
-	if !common.AlphanumericDashRegex.MatchString(req.DeviceId) {
-		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
-	}
-
-	if devices.GetDevice(req.DeviceId) == nil {
-		return &Payload{Message: language.GetValue("txtNonExistingDevice"), Code: http.StatusOK, Status: 0}
-	}
-
-	if req.WidgetId < 1 || len(req.WidgetData) == 0 || len(req.WidgetData) > 1024 {
-		return &Payload{Message: language.GetValue("txtUnableToUpdateWidget"), Code: http.StatusOK, Status: 0}
-	}
-
-	results := devices.CallDeviceMethod(
-		req.DeviceId,
+	return processWidgetCall(r,
+		func(req *Payload) bool {
+			return req.WidgetId >= 1 && len(req.WidgetData) > 0 && len(req.WidgetData) <= 1024
+		},
 		"UpdateWidgetSettings",
-		req.WidgetId,
-		req.WidgetData,
-	)
-
-	if len(results) > 0 {
-		if results[0].Uint() == 1 {
-			return &Payload{Message: language.GetValue("txtWidgetUpdated"), Code: http.StatusOK, Status: 1}
-		}
-	}
-	return &Payload{Message: language.GetValue("txtUnableToUpdateWidget"), Code: http.StatusOK, Status: 0}
+		func(req *Payload) []interface{} { return []interface{}{req.WidgetId, req.WidgetData} },
+		"txtWidgetUpdated", "txtUnableToUpdateWidget")
 }
 
 // ProcessXeneonMediaDelete will process DELETE request from a client for media library file deletion

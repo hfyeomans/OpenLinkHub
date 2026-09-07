@@ -483,11 +483,11 @@ func GetGpuProcesses() []GpuProcess {
 		if m == nil {
 			continue
 		}
-		gpuIndex, _ := strconv.Atoi(m[1])
+		idx, _ := strconv.Atoi(m[1])
 		pid, _ := strconv.Atoi(m[2])
 		memory, _ := strconv.Atoi(m[5])
 		procs = append(procs, GpuProcess{
-			GpuIndex: gpuIndex,
+			GpuIndex: idx,
 			Pid:      pid,
 			Type:     gpuProcessType(m[3]),
 			Name:     strings.TrimSpace(m[4]),
@@ -572,7 +572,7 @@ func enrichHostProcessInfo(procs []GpuProcess) {
 		hostMem int
 		command string
 	}
-	info := make(map[int]hostInfo)
+	byPid := make(map[int]hostInfo)
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
 		f := strings.Fields(scanner.Text())
@@ -585,7 +585,7 @@ func enrichHostProcessInfo(procs []GpuProcess) {
 		}
 		cpu, _ := strconv.ParseFloat(f[2], 64)
 		rss, _ := strconv.Atoi(f[3])
-		info[pid] = hostInfo{
+		byPid[pid] = hostInfo{
 			user:    f[1],
 			cpu:     cpu,
 			hostMem: rss / 1024,
@@ -593,7 +593,7 @@ func enrichHostProcessInfo(procs []GpuProcess) {
 		}
 	}
 	for i := range procs {
-		if h, ok := info[procs[i].Pid]; ok {
+		if h, ok := byPid[procs[i].Pid]; ok {
 			procs[i].User = h.user
 			procs[i].Cpu = h.cpu
 			procs[i].HostMem = h.hostMem
@@ -681,22 +681,12 @@ func (si *SystemInfo) GetStorageData() {
 // device in hwmon order, or -1 when unavailable. Read fresh each call so Edge ring
 // gauges stay current.
 func GetStorageTemperatureIndex(index int) int {
-	info := &SystemInfo{}
-	info.GetStorageData()
-	if info.Storage == nil || index < 0 || index >= len(*info.Storage) {
+	si := &SystemInfo{}
+	si.GetStorageData()
+	if si.Storage == nil || index < 0 || index >= len(*si.Storage) {
 		return -1
 	}
-	return int((*info.Storage)[index].Temperature)
-}
-
-// GetStorageCount returns how many storage devices expose a temperature sensor.
-func GetStorageCount() int {
-	info := &SystemInfo{}
-	info.GetStorageData()
-	if info.Storage == nil {
-		return 0
-	}
-	return len(*info.Storage)
+	return int((*si.Storage)[index].Temperature)
 }
 
 // GetBoardData will return motherboard details
