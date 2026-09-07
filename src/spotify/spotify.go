@@ -61,11 +61,28 @@ type Status struct {
 
 var (
 	mu          sync.RWMutex
+	refreshMu   sync.Mutex // serializes token refreshes so a burst makes one network call
 	creds       credentials
 	accessToken string
 	accessExp   time.Time
 	httpClient  = &http.Client{Timeout: 10 * time.Second}
 )
+
+// tokenRefreshSkew refreshes the access token this long before its real expiry.
+const tokenRefreshSkew = 30 * time.Second
+
+// tokenResponse is the Spotify token endpoint's reply (authorize and refresh).
+type tokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
+}
+
+// tokenValidLocked reports whether the cached access token is still usable.
+// The caller holds mu (read or write).
+func tokenValidLocked() bool {
+	return accessToken != "" && time.Now().Before(accessExp.Add(-tokenRefreshSkew))
+}
 
 func credentialsPath() string {
 	return config.GetConfig().ConfigPath + "/database/spotify.json"
@@ -186,12 +203,8 @@ func Exchange(code string) error {
 	form.Set("code", code)
 	form.Set("redirect_uri", RedirectURI())
 
-	var tok struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		ExpiresIn    int    `json:"expires_in"`
-	}
-	if err := tokenRequest(form, &tok); err != nil {
+	var tok tokenResponse
+	if err := tokenRequest(creds.ClientID, creds.ClientSecret, form, &tok); err != nil {
 		return err
 	}
 	if tok.RefreshToken == "" {
@@ -213,14 +226,14 @@ func Disconnect() error {
 	return saveLocked()
 }
 
-// tokenRequest performs a client-authenticated POST to the token endpoint.
-// The caller holds mu.
-func tokenRequest(form url.Values, out interface{}) error {
+// tokenRequest performs a client-authenticated POST to the token endpoint. It
+// touches no shared state, so the caller need not hold mu during the network call.
+func tokenRequest(clientID, clientSecret string, form url.Values, out interface{}) error {
 	req, err := http.NewRequest(http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return err
 	}
-	basic := base64.StdEncoding.EncodeToString([]byte(creds.ClientID + ":" + creds.ClientSecret))
+	basic := base64.StdEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
 	req.Header.Set("Authorization", "Basic "+basic)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -236,38 +249,46 @@ func tokenRequest(form url.Values, out interface{}) error {
 	return json.Unmarshal(body, out)
 }
 
-// bearer returns a valid access token, refreshing it when necessary.
+// bearer returns a valid access token, refreshing it when necessary. The network
+// refresh runs without holding mu (so Spotify reads/writes aren't blocked by a slow
+// token endpoint); refreshMu serializes concurrent refreshes into a single call.
 func bearer() (string, error) {
 	mu.RLock()
 	if creds.RefreshToken == "" {
 		mu.RUnlock()
 		return "", errors.New("spotify is not connected")
 	}
-	if accessToken != "" && time.Now().Before(accessExp.Add(-30*time.Second)) {
+	if tokenValidLocked() {
 		tok := accessToken
 		mu.RUnlock()
 		return tok, nil
 	}
 	mu.RUnlock()
 
-	mu.Lock()
-	defer mu.Unlock()
-	// Re-check after acquiring the write lock (another goroutine may have refreshed).
-	if accessToken != "" && time.Now().Before(accessExp.Add(-30*time.Second)) {
-		return accessToken, nil
+	refreshMu.Lock()
+	defer refreshMu.Unlock()
+
+	// Another goroutine may have refreshed while we waited for refreshMu.
+	mu.RLock()
+	if tokenValidLocked() {
+		tok := accessToken
+		mu.RUnlock()
+		return tok, nil
 	}
+	clientID, clientSecret, refreshToken := creds.ClientID, creds.ClientSecret, creds.RefreshToken
+	mu.RUnlock()
+
 	form := url.Values{}
 	form.Set("grant_type", "refresh_token")
-	form.Set("refresh_token", creds.RefreshToken)
+	form.Set("refresh_token", refreshToken)
 
-	var tok struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		ExpiresIn    int    `json:"expires_in"`
-	}
-	if err := tokenRequest(form, &tok); err != nil {
+	var tok tokenResponse
+	if err := tokenRequest(clientID, clientSecret, form, &tok); err != nil { // network I/O, unlocked
 		return "", err
 	}
+
+	mu.Lock()
+	defer mu.Unlock()
 	accessToken = tok.AccessToken
 	accessExp = time.Now().Add(time.Duration(tok.ExpiresIn) * time.Second)
 	if tok.RefreshToken != "" && tok.RefreshToken != creds.RefreshToken {

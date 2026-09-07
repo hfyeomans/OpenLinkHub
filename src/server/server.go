@@ -980,12 +980,12 @@ func setSpotifyCredentials(w http.ResponseWriter, r *http.Request) {
 		ClientSecret string `json:"clientSecret"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		resp.Message = "Invalid request"
+		resp.Message = language.GetValue("txtUnableToValidateRequest")
 	} else if err = spotify.SetCredentials(body.ClientID, body.ClientSecret); err != nil {
 		resp.Message = err.Error()
 	} else {
 		resp.Status = 1
-		resp.Message = "Spotify credentials saved"
+		resp.Message = language.GetValue("txtSpotifyCredentialsSaved")
 	}
 	resp.Send(w)
 }
@@ -997,12 +997,12 @@ func spotifyExchange(w http.ResponseWriter, r *http.Request) {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		resp.Message = "Invalid request"
+		resp.Message = language.GetValue("txtUnableToValidateRequest")
 	} else if err = spotify.Exchange(body.Code); err != nil {
 		resp.Message = err.Error()
 	} else {
 		resp.Status = 1
-		resp.Message = "Spotify connected"
+		resp.Message = language.GetValue("txtSpotifyConnected")
 	}
 	resp.Send(w)
 }
@@ -1030,7 +1030,7 @@ func spotifyDisconnect(w http.ResponseWriter, _ *http.Request) {
 		resp.Message = err.Error()
 	} else {
 		resp.Status = 1
-		resp.Message = "Spotify disconnected"
+		resp.Message = language.GetValue("txtSpotifyDisconnected")
 	}
 	resp.Send(w)
 }
@@ -1053,7 +1053,7 @@ func spotifyControl(w http.ResponseWriter, r *http.Request) {
 	resp := &Response{Code: http.StatusOK, Status: 0}
 	action, valid := getVar("/api/spotify/control/", r)
 	if !valid {
-		resp.Message = "Invalid control action"
+		resp.Message = language.GetValue("txtSpotifyInvalidAction")
 	} else if err := spotify.Control(action); err != nil {
 		resp.Message = err.Error()
 	} else {
