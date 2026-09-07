@@ -1,0 +1,21 @@
+{{ define "widget-card-style" }}{{ if .BackgroundColor }} style="background: {{ .BackgroundColor }} !important;{{ if .TextColor }} color: {{ .TextColor }} !important;{{ end }}"{{ end }}{{ end }}
+{{ define "widget-card-bg" }}{{ if .BackgroundColor }} style="background: {{ .BackgroundColor }} !important;"{{ end }}{{ end }}
+{{ define "xeneon-ring-body" }}
+    <div class="card-body">
+        <div class="thermal-meta">
+            <div class="big-label">{{ .HeaderText }}</div>
+        </div>
+        <div class="ring-chart">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="ring-track" cx="60" cy="60" r="46"></circle>
+                <circle class="ring-progress" cx="60" cy="60" r="46"></circle>
+            </svg>
+            <div class="center">
+                <div class="small">
+                    <div class="thermal-temp chart-value" style="color: {{ .TextColor }}">0</div>
+                </div>
+                <div class="big">{{ .Unit }}</div>
+            </div>
+        </div>
+    </div>
+{{ end }}
