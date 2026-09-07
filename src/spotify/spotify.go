@@ -46,7 +46,6 @@ type NowPlaying struct {
 	Playing    bool   `json:"playing"`
 	Title      string `json:"title"`
 	Artist     string `json:"artist"`
-	Album      string `json:"album"`
 	ArtURL     string `json:"artUrl"`
 	Device     string `json:"device"`
 	ProgressMs int64  `json:"progressMs"`
@@ -325,7 +324,6 @@ func GetNowPlaying() (NowPlaying, error) {
 				Name string `json:"name"`
 			} `json:"artists"`
 			Album struct {
-				Name   string `json:"name"`
 				Images []struct {
 					URL string `json:"url"`
 				} `json:"images"`
@@ -339,7 +337,6 @@ func GetNowPlaying() (NowPlaying, error) {
 	np := NowPlaying{
 		Playing:    pl.IsPlaying,
 		Title:      pl.Item.Name,
-		Album:      pl.Item.Album.Name,
 		Device:     pl.Device.Name,
 		ProgressMs: pl.ProgressMs,
 		DurationMs: pl.Item.DurationMs,

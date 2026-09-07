@@ -370,9 +370,6 @@ func (d *Device) computeColumnLayout(areaIds []int) map[int]columnPlacement {
 	return res
 }
 
-// ColumnAreas returns a side column's area ids top-to-bottom (for the config page).
-func (d *Device) ColumnAreas(col int) []int { return columnAreas[col] }
-
 // AreaCovered reports whether an area is hidden underneath another widget that spans
 // into it (so the config page can blank it out).
 func (d *Device) AreaCovered(areaId int) bool {
@@ -399,10 +396,7 @@ func (d *Device) AreaSpanChoices(areaId int) []int {
 	if ceil <= floor {
 		return nil // fixed-size widget (e.g. Weather) — not user-resizable
 	}
-	max := ceil
-	if p.avail < max {
-		max = p.avail
-	}
+	max := p.avail // always <= ceil for a sizable widget
 	if max <= floor {
 		return nil
 	}
@@ -714,15 +708,6 @@ func (d *Device) SaveUserProfile(profileName string) uint8 {
 // getManufacturer will return device manufacturer
 func (d *Device) getDebugMode() {
 	d.Debug = config.GetConfig().Debug
-}
-
-func (d *Device) getWidget(widgetId int) *Widget {
-	for _, widget := range d.Widgets {
-		if widget.Id == widgetId {
-			return &widget
-		}
-	}
-	return nil
 }
 
 // saveDeviceProfile will save device profile for persistent configuration

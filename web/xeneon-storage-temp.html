@@ -1,5 +1,4 @@
 {{ define "xeneon-storage-temp" }}
-{{ $root := .Root }}
 {{ $widget := .Widget }}
 <div class="card system-card thermal-widget storage-temp-widget" id="xeneon-storage-temp-{{ $widget.StorageIndex }}" data-storage-index="{{ $widget.StorageIndex }}" data-value="0" data-max="{{ $widget.Max }}" data-color="{{ $widget.DataColor }}"{{ if $widget.BackgroundColor }} style="background: {{ $widget.BackgroundColor }} !important;"{{ end }}>
     <div class="card-body">
