@@ -48,11 +48,12 @@ $(document).ready(function () {
                     if (baseline === null) {
                         baseline = response.data;
                     } else if (response.data !== baseline) {
+                        baseline = response.data; // avoid a second reload racing the navigation
                         location.reload();
                     }
                 }
             });
-        }, 3000);
+        }, 1000);
     })();
 
     // System clock
