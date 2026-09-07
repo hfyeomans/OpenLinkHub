@@ -560,10 +560,10 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 
 	if settings.City != nil {
 		city := strings.TrimSpace(*settings.City)
-		if len(city) < 1 || len(city) > 64 {
+		if len(city) > 64 {
 			return 0
 		}
-		widget.City = city
+		widget.City = city // empty is allowed (clears a manual city, e.g. for AutoWeather)
 	}
 	if settings.Country != nil {
 		country := strings.TrimSpace(*settings.Country)

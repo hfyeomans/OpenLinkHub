@@ -129,8 +129,10 @@ func PerformMediaUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	header := make([]byte, 512)
-	n, err := file.Read(header)
-	if err != nil && err != io.EOF {
+	// io.ReadFull fills the sniff buffer even when the reader returns it in chunks;
+	// a short file (ErrUnexpectedEOF) or empty file (EOF) is fine — sniff what we got.
+	n, err := io.ReadFull(file, header)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		logger.Log(logger.Fields{"error": err}).Error("Unable to inspect file")
 		http.Error(w, "Unable to inspect file", http.StatusBadRequest)
 		return
