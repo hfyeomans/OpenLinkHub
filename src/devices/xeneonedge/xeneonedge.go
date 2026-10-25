@@ -38,7 +38,13 @@ type DeviceProfile struct {
 	Serial      string
 	WidgetAreas map[int]WidgetArea
 	RgbOff      bool
-	Widgets     []Widget `json:"widgets"`
+	// DDC/CI display values (nil = unset, not restored). RGB is raw 0..255.
+	DisplayBrightness *int     `json:"displayBrightness,omitempty"`
+	DisplayContrast   *int     `json:"displayContrast,omitempty"`
+	DisplayRed        *int     `json:"displayRed,omitempty"`
+	DisplayGreen      *int     `json:"displayGreen,omitempty"`
+	DisplayBlue       *int     `json:"displayBlue,omitempty"`
+	Widgets           []Widget `json:"widgets"`
 }
 
 type WidgetArea struct {
@@ -149,6 +155,53 @@ func (d *Device) updateNotificationsCapture() {
 	notifications.SetCapture(d.notificationsPlaced())
 }
 
+// restoreDisplaySettings re-applies persisted DDC/CI values. Failures are
+// tolerated: a code may be unavailable this session.
+func (d *Device) restoreDisplaySettings() {
+	if d.DeviceProfile == nil {
+		return
+	}
+	pf := d.DeviceProfile
+	values := map[string]*int{
+		"brightness": pf.DisplayBrightness,
+		"contrast":   pf.DisplayContrast,
+		"red":        pf.DisplayRed,
+		"green":      pf.DisplayGreen,
+		"blue":       pf.DisplayBlue,
+	}
+	for key, value := range values {
+		if value != nil {
+			_ = SetDisplaySetting(key, *value)
+		}
+	}
+}
+
+// SaveDisplaySettings persists DDC/CI values into the active profile so they
+// survive a restart. Values are applied by the caller (the API route).
+func (d *Device) SaveDisplaySettings(values map[string]int) uint8 {
+	if d.DeviceProfile == nil {
+		return 0
+	}
+	pf := d.DeviceProfile
+	for key, value := range values {
+		v := value
+		switch key {
+		case "brightness":
+			pf.DisplayBrightness = &v
+		case "contrast":
+			pf.DisplayContrast = &v
+		case "red":
+			pf.DisplayRed = &v
+		case "green":
+			pf.DisplayGreen = &v
+		case "blue":
+			pf.DisplayBlue = &v
+		}
+	}
+	d.saveDeviceProfile()
+	return 1
+}
+
 func Init(vendorId, productId uint16, _, path string) *common.Device {
 	// Set global working directory
 	pwd = config.GetConfig().ConfigPath
@@ -175,6 +228,7 @@ func Init(vendorId, productId uint16, _, path string) *common.Device {
 	d.loadWidgets()        // Widgets
 	d.loadDeviceProfiles() // Load all device profiles
 	d.updateNotificationsCapture()
+	d.restoreDisplaySettings()
 	d.saveDeviceProfile() // Save profile
 	d.createDevice()      // Device register
 	logger.Log(logger.Fields{"serial": d.Serial, "product": d.Product}).Info("Device successfully initialized")
@@ -672,8 +726,15 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 		if len(url) > 512 {
 			return 0
 		}
-		if len(url) > 0 && !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			return 0
+		if len(url) > 0 {
+			if strings.HasPrefix(url, "/api/xeneon/widgets/") {
+				// Internal custom-widget URLs are only valid on the custom template.
+				if widget.Template != "xeneon-custom" || !IsValidWidgetUrl(url) {
+					return 0
+				}
+			} else if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+				return 0
+			}
 		}
 		widget.Url = url
 	}

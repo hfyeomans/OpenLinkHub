@@ -22,6 +22,9 @@ Manage RGB lighting, fan speeds, system metrics, as well as keyboards, mice, and
 - [Motherboard PWM](docs/motherboard-pwm.md)
 - [OpenRGB Integration](openrgb/README.md)
 - [XENEON EDGE KDE](docs/xeneon-edge-kde.md)
+- [XENEON EDGE dashboard](docs/xeneon-edge-roadmap.md) — profile swipes, Twitch, Spotify, volume, sensor charts, notifications, launch buttons, custom widgets, DDC/CI display control
+- [XENEON EDGE cage kiosk](docs/xeneon-edge-cage.md) — dedicated-box kiosk runtime
+- [XENEON EDGE data API](docs/xeneon-edge-data-api.md) — CORS-whitelisted read-only endpoints for custom widgets
 
 ![Web UI](https://github.com/jurkovic-nikola/OpenLinkHub/blob/main/static/img/ui.png?raw=true)
 
