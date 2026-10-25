@@ -75,8 +75,10 @@
                             <div class="settings-list">
                                 <!-- Widgets -->
                                 {{ range $key, $widget := $deviceProfile.Widgets }}
+                                {{ $placed := false }}
+                                {{ range $areaId, $area := $deviceProfile.WidgetAreas }}{{ if eq $area.WidgetId $widget.Id }}{{ $placed = true }}{{ end }}{{ end }}
                                 <div class="settings-row">
-                                    <span class="settings-label text-ellipsis">{{ $widget.Name }}</span>
+                                    <span class="settings-label text-ellipsis">{{ $widget.Name }}{{ if not $placed }} <span style="font-size:11px;opacity:.55">{{ $root.Lang "txtWidgetNotPlaced" }}</span>{{ end }}</span>
                                     <label>
                                         <button class="system-button center configureWidget"
                                                 data-info="{{ $widget.Id }}"
