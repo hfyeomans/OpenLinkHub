@@ -35,6 +35,7 @@ body.edge-dashboard {
     box-sizing: border-box;
     overflow: hidden;
     flex-shrink: 0;
+    touch-action: pan-y;
     transform-origin: top left;
 }
 
@@ -937,3 +938,36 @@ code {
     min-width: 46px;
     font-size: 16px;
 }
+
+/* Profile page indicator (swipe between profiles on the touchscreen) */
+#edgePageDots {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 50;
+    pointer-events: none;
+}
+
+#edgePageDots .edge-page-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+#edgePageDots .edge-page-dot.active {
+    background: rgba(255, 255, 255, 0.85);
+}
+
+/* Air quality badge in the weather card */
+.aqi-good { color: #4ade80; }
+.aqi-fair { color: #a3e635; }
+.aqi-moderate { color: #facc15; }
+.aqi-poor { color: #fb923c; }
+.aqi-very-poor { color: #f87171; }
+.aqi-extreme { color: #c084fc; }

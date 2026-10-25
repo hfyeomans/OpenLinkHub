@@ -301,6 +301,42 @@
       "headerText": "Storage 2 Temp",
       "unit": "°C",
       "textColor": "#a1a1a1"
+    },
+    {
+      "id": 30,
+      "name": "Twitch Chat",
+      "template": "xeneon-twitch-chat",
+      "columns": [
+        1,
+        3
+      ],
+      "channel": "",
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 31,
+      "name": "Twitch Live",
+      "template": "xeneon-twitch-live",
+      "columns": [
+        1,
+        3
+      ],
+      "channel": "",
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 32,
+      "name": "Stopwatch",
+      "template": "xeneon-embed",
+      "columns": [
+        1,
+        3
+      ],
+      "url": "/static/edge-widgets/stopwatch/",
+      "minSpan": 1,
+      "maxSpan": 3
     }
   ]
 }

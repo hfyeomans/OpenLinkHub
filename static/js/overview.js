@@ -1809,6 +1809,7 @@ $(document).ready(function () {
         const isThermal = /^xeneon-(cpu|gpu)-(temp|load)$/.test(template);
         const isImage = template === 'xeneon-image';
         const isSlideshow = template === 'xeneon-slideshow';
+        const isTwitch = template === 'xeneon-twitch-chat' || template === 'xeneon-twitch-live';
         const isWebUrl = template === 'xeneon-weburl';
 
         const weatherRows = `
@@ -1921,6 +1922,15 @@ $(document).ready(function () {
             </div>
         `;
 
+        const twitchRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtTwitchChannel', 'Channel')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetChannel"><input type="text" id="widgetChannel" autocomplete="off" placeholder="shroud"></label>
+                </div>
+            </div>
+        `;
+
         // Thermal widgets own their text color as a type control (it predates the
         // custom-style system), so their style section toggles background only.
         const styleTextRow = isThermal ? '' : `
@@ -1958,6 +1968,8 @@ $(document).ready(function () {
             typeRows = slideshowRows;
         } else if (isWebUrl) {
             typeRows = weburlRows;
+        } else if (isTwitch) {
+            typeRows = twitchRows;
         }
 
         const openModal = function (mediaFiles) {
@@ -2021,6 +2033,8 @@ $(document).ready(function () {
                     modal.find('#widgetFit').val($btn.attr('data-fit') || 'cover');
                 } else if (isWebUrl) {
                     modal.find('#widgetUrl').val($btn.attr('data-url'));
+                } else if (isTwitch) {
+                    modal.find('#widgetChannel').val($btn.attr('data-channel'));
                 }
 
                 const backgroundColor = $btn.attr('data-backgroundcolor') || '';
@@ -2081,6 +2095,13 @@ $(document).ready(function () {
                             return false;
                         }
                         widgetData.url = url;
+                    } else if (isTwitch) {
+                        const channel = modal.find('#widgetChannel').val().trim();
+                        if (channel.length > 0 && !/^[a-zA-Z0-9_]{3,25}$/.test(channel)) {
+                            toast.warning(i18n.t('txtTwitchInvalidChannel', 'Channel must be 3-25 characters (letters, numbers, underscore)'));
+                            return false;
+                        }
+                        widgetData.channel = channel;
                     }
 
                     // Custom style. Thermal text color is saved above as a type control;

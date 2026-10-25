@@ -1317,6 +1317,36 @@ func getXeneonRevision(w http.ResponseWriter, _ *http.Request) {
 	resp.Send(w)
 }
 
+// getXeneonProfiles returns the Edge profile names plus the active one for the
+// kiosk swipe UI (UserProfiles is not serialized into the device payload).
+func getXeneonProfiles(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{Code: http.StatusOK, Status: 0}
+	var xeneon *common.Device
+	for _, val := range devices.GetDevices() {
+		if val.ProductType == common.ProductTypeXeneonEdge {
+			xeneon = val
+		}
+	}
+	if xeneon == nil {
+		resp.Message = language.GetValue("txtXeneonEdgeUnavailable")
+		resp.Send(w)
+		return
+	}
+	dev, ok := xeneon.Instance.(*xeneonedge.Device)
+	if !ok {
+		resp.Message = language.GetValue("txtXeneonEdgeUnavailable")
+		resp.Send(w)
+		return
+	}
+	resp.Status = 1
+	resp.Data = map[string]any{
+		"profiles": dev.ProfileNames(),
+		"active":   dev.ActiveProfileName(),
+		"deviceId": xeneon.Serial,
+	}
+	resp.Send(w)
+}
+
 // getXeneonMedia handles media library listing
 func getXeneonMedia(w http.ResponseWriter, _ *http.Request) {
 	resp := &Response{
@@ -2808,6 +2838,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/gpuStats", http.MethodGet, getGpuStats)
 	handleFunc(r, "/api/gpuExtended", http.MethodGet, getGpuExtended)
 	handleFunc(r, "/api/xeneon/revision", http.MethodGet, getXeneonRevision)
+	handleFunc(r, "/api/xeneon/profiles", http.MethodGet, getXeneonProfiles)
 	handleFunc(r, "/api/xeneon/media", http.MethodGet, getXeneonMedia)
 	handleFunc(r, "/api/xeneon/media/", http.MethodGet, xeneonedge.PerformMediaServe)
 	handleFunc(r, "/api/storageTemp", http.MethodGet, getStorageTemperature)

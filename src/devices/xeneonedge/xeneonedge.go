@@ -88,6 +88,7 @@ type Widget struct {
 	Unit            string  `json:"unit"`
 	TextColor       string  `json:"textColor"`
 	Url             string  `json:"url"`
+	Channel         string  `json:"channel"`
 	MediaFile       string  `json:"mediaFile"`
 	Fit             string  `json:"fit"`
 	Interval        int     `json:"interval"`
@@ -117,6 +118,8 @@ var (
 	pwd           = ""
 	hexColorRegex = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
+
+var twitchChannelRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,25}$`)
 
 func Init(vendorId, productId uint16, _, path string) *common.Device {
 	// Set global working directory
@@ -452,6 +455,27 @@ func (d *Device) SegmentSlots(areaIds ...int) []RenderSlot {
 	return slots
 }
 
+// ProfileNames returns the profile names in deterministic order for the kiosk
+// swipe UI (UserProfiles is a map, so order it explicitly).
+func (d *Device) ProfileNames() []string {
+	names := make([]string, 0, len(d.UserProfiles))
+	for name := range d.UserProfiles {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// ActiveProfileName returns the active profile's name, or "" when none is active.
+func (d *Device) ActiveProfileName() string {
+	for name, pf := range d.UserProfiles {
+		if pf.Active {
+			return name
+		}
+	}
+	return ""
+}
+
 // getProfileWidget will return a widget from the active device profile
 func (d *Device) getProfileWidget(widgetId int) *Widget {
 	if d.DeviceProfile == nil {
@@ -547,6 +571,7 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 		Unit            *string  `json:"unit"`
 		TextColor       *string  `json:"textColor"`
 		Url             *string  `json:"url"`
+		Channel         *string  `json:"channel"`
 		MediaFile       *string  `json:"mediaFile"`
 		Fit             *string  `json:"fit"`
 		Interval        *int     `json:"interval"`
@@ -617,6 +642,13 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 			return 0
 		}
 		widget.Url = url
+	}
+	if settings.Channel != nil {
+		channel := strings.TrimSpace(*settings.Channel)
+		if len(channel) > 0 && !twitchChannelRegex.MatchString(channel) {
+			return 0
+		}
+		widget.Channel = channel
 	}
 	if settings.MediaFile != nil {
 		if len(*settings.MediaFile) > 0 && !IsValidMediaFile(*settings.MediaFile) {
