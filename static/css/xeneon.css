@@ -1114,3 +1114,13 @@ code {
 .aqi-poor { color: #fb923c; }
 .aqi-very-poor { color: #f87171; }
 .aqi-extreme { color: #c084fc; }
+
+/* XENEON EDGE panel (2560x720, ~190 PPI): ring digits carry .chart-value,
+   whose 18px base rule out-orders .thermal-temp's size clamp — bump only
+   the digits inside rings at the panel's viewport. */
+@media (min-width: 2200px) and (max-height: 760px) {
+    .ring-chart .center .chart-value {
+        font-size: clamp(40px, 8vh, 72px);
+        line-height: 1;
+    }
+}
