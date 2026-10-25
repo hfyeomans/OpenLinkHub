@@ -3088,6 +3088,19 @@ func handleFunc(mux *http.ServeMux, path, method string, handler func(w http.Res
 	})
 }
 
+// handleFuncMethods registers one path with per-method handlers. ServeMux
+// patterns here carry no method prefix, so handlers that share a path must
+// share a single registration.
+func handleFuncMethods(mux *http.ServeMux, path string, methods map[string]func(w http.ResponseWriter, r *http.Request)) {
+	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		if handler, ok := methods[r.Method]; ok {
+			handler(w, r)
+			return
+		}
+		http.Error(w, language.GetValue("txtMethodNotAllowed"), http.StatusMethodNotAllowed)
+	})
+}
+
 // setRoutes will set up all routes
 func setRoutes() http.Handler {
 	r := http.NewServeMux()
@@ -3117,8 +3130,10 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/cpuTemp", http.MethodGet, getCpuTemperature)
 	handleFunc(r, "/api/cpuTemp/clean", http.MethodGet, getCpuTemperatureClean)
 	handleFunc(r, "/api/cpuLoad", http.MethodGet, getCpuLoad)
-	handleFunc(r, "/api/audio/volume", http.MethodGet, getAudioVolume)
-	handleFunc(r, "/api/audio/volume", http.MethodPost, postAudioVolume)
+	handleFuncMethods(r, "/api/audio/volume", map[string]func(w http.ResponseWriter, r *http.Request){
+		http.MethodGet:  getAudioVolume,
+		http.MethodPost: postAudioVolume,
+	})
 	handleFunc(r, "/api/audio/mute", http.MethodPost, postAudioMute)
 	handleFunc(r, "/api/gpuTemp", http.MethodGet, getGpuTemperature)
 	handleFunc(r, "/api/gpuTemps", http.MethodGet, getGpuTemperatures)
@@ -3131,17 +3146,23 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/gpuExtended", http.MethodGet, getGpuExtended)
 	handleFunc(r, "/api/xeneon/revision", http.MethodGet, getXeneonRevision)
 	handleFunc(r, "/api/xeneon/profiles", http.MethodGet, getXeneonProfiles)
-	handleFunc(r, "/api/xeneon/actions", http.MethodGet, getXeneonActions)
-	handleFunc(r, "/api/xeneon/actions", http.MethodPut, putXeneonActions)
+	handleFuncMethods(r, "/api/xeneon/actions", map[string]func(w http.ResponseWriter, r *http.Request){
+		http.MethodGet: getXeneonActions,
+		http.MethodPut: putXeneonActions,
+	})
 	handleFunc(r, "/api/xeneon/action/{id}", http.MethodPost, postXeneonAction)
 	handleFunc(r, "/api/xeneon/history/{sensor}", http.MethodGet, getXeneonHistory)
 	handleFunc(r, "/api/xeneon/notifications", http.MethodGet, getXeneonNotifications)
-	handleFunc(r, "/api/xeneon/widgets", http.MethodGet, xeneonWidgetsList)
-	handleFunc(r, "/api/xeneon/display", http.MethodGet, getXeneonDisplay)
-	handleFunc(r, "/api/xeneon/display", http.MethodPost, postXeneonDisplay)
+	handleFuncMethods(r, "/api/xeneon/widgets", map[string]func(w http.ResponseWriter, r *http.Request){
+		http.MethodGet:    xeneonWidgetsList,
+		http.MethodDelete: xeneonWidgetDelete,
+	})
+	handleFuncMethods(r, "/api/xeneon/display", map[string]func(w http.ResponseWriter, r *http.Request){
+		http.MethodGet:  getXeneonDisplay,
+		http.MethodPost: postXeneonDisplay,
+	})
 	handleFunc(r, "/api/xeneon/widgets/", http.MethodGet, xeneonedge.ServeWidget)
 	handleFunc(r, "/api/xeneon/widgets/upload", http.MethodPost, xeneonedge.PerformWidgetUpload)
-	handleFunc(r, "/api/xeneon/widgets", http.MethodDelete, xeneonWidgetDelete)
 	handleFunc(r, "/api/xeneon/media", http.MethodGet, getXeneonMedia)
 	handleFunc(r, "/api/xeneon/media/", http.MethodGet, xeneonedge.PerformMediaServe)
 	handleFunc(r, "/api/storageTemp", http.MethodGet, getStorageTemperature)

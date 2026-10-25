@@ -546,6 +546,8 @@ static void vol_registry_global(
 	}
 	memset(s, 0, sizeof(*s));
 	s->id = id;
+	s->used = 1;
+	vol.n_used++;
 	snprintf(s->name, sizeof(s->name), "%s", name ? name : "");
 	snprintf(s->desc, sizeof(s->desc), "%s", desc ? desc : "");
 
