@@ -99,5 +99,39 @@ func GetValue(key string) string {
 			return value
 		}
 	}
+	if languageCode != "en_US" {
+		if lang, ok := languages["en_US"]; ok {
+			if value, found := lang.Values[key]; found {
+				return value
+			}
+		}
+	}
 	return ""
+}
+
+// GetLanguageForRender returns the active language with en_US values merged in as
+// fallback for keys the active language has not translated yet, so new UI strings
+// never render empty on non-English locales.
+func GetLanguageForRender() *Language {
+	languageCode := dashboard.GetDashboard().LanguageCode
+	if len(languageCode) == 0 {
+		languageCode = "en_US"
+	}
+	lang, ok := languages[languageCode]
+	if !ok {
+		lang = languages["en_US"]
+	}
+	merged := lang
+	merged.Values = make(map[string]string, len(lang.Values)+len(languages["en_US"].Values))
+	for k, v := range lang.Values {
+		merged.Values[k] = v
+	}
+	if languageCode != "en_US" {
+		for k, v := range languages["en_US"].Values {
+			if _, found := merged.Values[k]; !found {
+				merged.Values[k] = v
+			}
+		}
+	}
+	return &merged
 }

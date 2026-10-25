@@ -683,6 +683,26 @@
     "txtSurfaceSelection": "Ytval",
     "txtInvalidSurfaceSelectionOption": "Ogiltigt alternativ för ytval",
     "txtSurfaceSelectionUpdated": "Ytvalet har uppdaterats",
-    "txtUnableToUpdateSurfaceSelection": "Det gick inte att uppdatera ytvalet"
+    "txtUnableToUpdateSurfaceSelection": "Det gick inte att uppdatera ytvalet",
+    "txtSpotify": "Spotify",
+    "txtSpotifyClientId": "Klient-ID",
+    "txtSpotifyClientSecret": "Klienthemlighet",
+    "txtSpotifySaveCreds": "Spara inloggningsuppgifter",
+    "txtSpotifyGetAuth": "Hämta auktoriseringslänk",
+    "txtSpotifyPasteCode": "Klistra in koden från omdirigeringen",
+    "txtSpotifyConnect": "Anslut",
+    "txtSpotifyDisconnect": "Koppla från",
+    "txtSpotifyCredentialsSaved": "Spotify-inloggningsuppgifter sparade",
+    "txtSpotifyConnected": "Spotify ansluten",
+    "txtSpotifyDisconnected": "Spotify frånkopplad",
+    "txtSpotifyInvalidAction": "Ogiltig kontrollåtgärd",
+    "txtSpotifyIdle": "Inget spelas på Spotify",
+    "txtWidgetNotPlaced": "Inte placerad",
+    "txtLcdBrightness": "LCD-ljusstyrka",
+    "txtLcdBrightnessChanged": "LCD-ljusstyrkan har ändrats",
+    "txtLcdOffDuringDarkHours": "LCD av under mörka timmar",
+    "txtInvalidLcdBrightness": "Ogiltigt värde för LCD-ljusstyrka",
+    "txtInvalidLcdBrightnessDevice": "Kunde inte ändra LCD-ljusstyrkan. Antingen är LCD:n offline eller så har du ingen LCD",
+    "txtUnableToChangeLcdBrightness": "Kunde inte ändra LCD-ljusstyrka"
   }
 }

@@ -883,7 +883,7 @@ func getLanguageData(w http.ResponseWriter, _ *http.Request) {
 	resp := &Response{
 		Code:   http.StatusOK,
 		Status: 1,
-		Data:   language.GetLanguage(""),
+		Data:   language.GetLanguageForRender(),
 	}
 	resp.Send(w)
 }

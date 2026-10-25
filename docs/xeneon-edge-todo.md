@@ -16,6 +16,8 @@ a time; newest context at the bottom of each item.
 ## Done (this session)
 - [x] Fix side-column span rendering (Weather grow-up, GPU Monitor data-span)
 - [x] `RenderTemplate` logs template execution errors (previously silently rendered empty widget slots)
+- [x] Language values fall back to en_US for untranslated keys (`GetValue` + `/api/language` via `GetLanguageForRender`); all missing keys translated for de/fr/hr/pt-BR/ru/sv
+- [x] Local Go builds: `CGO_CFLAGS_ALLOW=-fno-strict-overflow` needed with Go >= 1.26 + system PipeWire (applied via `go env -w`; Dockerfile and CI already carried it)
 - [x] Config page shows a "Not placed" marker for catalog widgets assigned to no area (new catalog widgets used to appear invisibly)
 - [x] Add 6 embeddable third-party edge widgets (World Clock, Focus Timer,
       Countdowns, Habit Rings, Daily Brief, GitHub Repo Monitor)

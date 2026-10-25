@@ -683,6 +683,26 @@
         "txtSurfaceSelection": "Выбор поверхности",
         "txtInvalidSurfaceSelectionOption": "Недопустимый параметр выбора поверхности",
         "txtSurfaceSelectionUpdated": "Выбор поверхности успешно обновлён",
-        "txtUnableToUpdateSurfaceSelection": "Не удалось обновить выбор поверхности"
+        "txtUnableToUpdateSurfaceSelection": "Не удалось обновить выбор поверхности",
+        "txtSpotify": "Spotify",
+        "txtSpotifyClientId": "ID клиента",
+        "txtSpotifyClientSecret": "Секрет клиента",
+        "txtSpotifySaveCreds": "Сохранить учётные данные",
+        "txtSpotifyGetAuth": "Получить ссылку авторизации",
+        "txtSpotifyPasteCode": "Вставьте код из перенаправления",
+        "txtSpotifyConnect": "Подключить",
+        "txtSpotifyDisconnect": "Отключить",
+        "txtSpotifyCredentialsSaved": "Учётные данные Spotify сохранены",
+        "txtSpotifyConnected": "Spotify подключён",
+        "txtSpotifyDisconnected": "Spotify отключён",
+        "txtSpotifyInvalidAction": "Недопустимое действие управления",
+        "txtSpotifyIdle": "На Spotify ничего не воспроизводится",
+        "txtWidgetNotPlaced": "Не размещено",
+        "txtLcdBrightness": "Яркость LCD",
+        "txtLcdBrightnessChanged": "Яркость LCD успешно изменена",
+        "txtLcdOffDuringDarkHours": "Отключение LCD в тёмное время суток",
+        "txtInvalidLcdBrightness": "Недопустимое значение яркости LCD",
+        "txtInvalidLcdBrightnessDevice": "Не удалось изменить яркость LCD. Либо LCD отключён, либо у вас нет LCD",
+        "txtUnableToChangeLcdBrightness": "Не удалось изменить яркость LCD"
     }
 }
