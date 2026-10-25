@@ -1,0 +1,15 @@
+{{ define "xeneon-chart" }}
+{{ $widget := .Widget }}
+<div class="edge-panel" id="xeneon-chart-{{ $widget.Id }}"{{ with .Span }} style="flex-grow: {{ . }};"{{ end }} data-sensor="{{ $widget.Sensor }}" data-window="{{ $widget.Window }}" data-unit="{{ $widget.Unit }}">
+    <div class="card system-card"{{ template "widget-card-style" $widget }}>
+        <div class="card-body chart-body">
+            <div class="chart-title">{{ $widget.HeaderText }}</div>
+            <svg class="chart-svg" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                <path class="chart-area"></path>
+                <path class="chart-line"></path>
+            </svg>
+            <div class="chart-value">--</div>
+        </div>
+    </div>
+</div>
+{{ end }}

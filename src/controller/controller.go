@@ -11,6 +11,7 @@ import (
 	"OpenLinkHub/src/devices"
 	"OpenLinkHub/src/devices/lcd"
 	"OpenLinkHub/src/display"
+	"OpenLinkHub/src/history"
 	"OpenLinkHub/src/inputmanager"
 	"OpenLinkHub/src/keyboards"
 	"OpenLinkHub/src/language"
@@ -20,6 +21,7 @@ import (
 	"OpenLinkHub/src/metrics"
 	"OpenLinkHub/src/monitor"
 	"OpenLinkHub/src/motherboards"
+	"OpenLinkHub/src/notifications"
 	"OpenLinkHub/src/rgb"
 	"OpenLinkHub/src/scheduler"
 	"OpenLinkHub/src/server"
@@ -32,36 +34,40 @@ import (
 
 // Start will start new controller session
 func Start() {
-	version.Init()      // Build info
-	config.Init()       // Configuration
-	logger.Init()       // Logger
-	display.Init()      // Displays
-	media.Init()        // Media client
-	spotify.Init()      // Spotify Web API client
-	audio.Init()        // Audio
-	dashboard.Init()    // Dashboard
-	systeminfo.Init()   // Build system info
-	metrics.Init()      // Metrics
-	rgb.Init()          // RGB
-	lcd.Init()          // LCD
-	temperatures.Init() // Temperatures
-	keyboards.Init()    // Keyboards
-	inputmanager.Init() // Input Manager
-	stats.Init()        // Statistics
-	macro.Init()        // Macro
-	motherboards.Init() // Motherboards
-	devices.Init()      // Devices
-	monitor.Init()      // Monitor
-	language.Init()     // Language
-	scheduler.Init()    // Scheduler
-	server.Init()       // REST & WebUI
+	version.Init()       // Build info
+	config.Init()        // Configuration
+	logger.Init()        // Logger
+	display.Init()       // Displays
+	media.Init()         // Media client
+	spotify.Init()       // Spotify Web API client
+	audio.Init()         // Audio
+	dashboard.Init()     // Dashboard
+	systeminfo.Init()    // Build system info
+	metrics.Init()       // Metrics
+	rgb.Init()           // RGB
+	lcd.Init()           // LCD
+	temperatures.Init()  // Temperatures
+	keyboards.Init()     // Keyboards
+	inputmanager.Init()  // Input Manager
+	stats.Init()         // Statistics
+	macro.Init()         // Macro
+	motherboards.Init()  // Motherboards
+	devices.Init()       // Devices
+	history.Init()       // Sensor history ring buffer
+	notifications.Init() // Desktop notification monitor
+	monitor.Init()       // Monitor
+	language.Init()      // Language
+	scheduler.Init()     // Scheduler
+	server.Init()        // REST & WebUI
 }
 
 // Stop will stop device control
 func Stop() {
-	devices.Stop()      // Devices
-	inputmanager.Stop() // Cleanup virtual devices
-	audio.StopAudio()   // Virtual Audio
-	media.Stop()        // Media client
-	spotify.Stop()      // Spotify Web API client
+	devices.Stop()       // Devices
+	inputmanager.Stop()  // Cleanup virtual devices
+	audio.StopAudio()    // Virtual Audio
+	media.Stop()         // Media client
+	spotify.Stop()       // Spotify Web API client
+	notifications.Stop() // Desktop notification monitor
+	history.Stop()       // Sensor history ring buffer
 }

@@ -1129,4 +1129,190 @@ $(document).ready(function () {
             setInterval(pollExtended, 5000);
         }
     }
+    // Sensor history chart: 5s poll (samples are recorded every 2s).
+    if ($('.chart-svg').length) {
+        const renderChart = function ($panel, points) {
+            const $area = $panel.find('.chart-area');
+            const $line = $panel.find('.chart-line');
+            const $value = $panel.find('.chart-value');
+            if (!points || points.length < 2) {
+                $line.attr('d', '');
+                $area.attr('d', '');
+                $value.text('--');
+                return;
+            }
+            let min = Infinity;
+            let max = -Infinity;
+            points.forEach(function (p) {
+                if (p.v < min) min = p.v;
+                if (p.v > max) max = p.v;
+            });
+            if (max - min < 1e-6) {
+                min -= 1;
+                max += 1;
+            }
+            const pad = (max - min) * 0.1;
+            min -= pad;
+            max += pad;
+            const t0 = points[0].t;
+            const span = (points[points.length - 1].t - t0) || 1;
+            const x = function (t) { return ((t - t0) / span) * 100; };
+            const y = function (v) { return 40 - ((v - min) / (max - min)) * 40; };
+            let line = '';
+            points.forEach(function (p, i) {
+                line += (i === 0 ? 'M' : 'L') + x(p.t).toFixed(2) + ' ' + y(p.v).toFixed(2) + ' ';
+            });
+            $line.attr('d', line);
+            $area.attr('d', line + 'L 100 40 L 0 40 Z');
+            const last = points[points.length - 1].v;
+            $value.text(Math.round(last) + ($panel.attr('data-unit') || ''));
+        };
+
+        const pollCharts = function () {
+            $('.chart-svg').each(function () {
+                const $panel = $(this).closest('[data-sensor]');
+                const sensor = $panel.attr('data-sensor');
+                if (!sensor) return;
+                $.ajax({
+                    url: '/api/xeneon/history/' + encodeURIComponent(sensor) + '?window=' + ($panel.attr('data-window') || '15'),
+                    method: 'GET',
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.status === 1 && response.data) {
+                            renderChart($panel, response.data.points);
+                        }
+                    }
+                });
+            });
+        };
+        pollCharts();
+        setInterval(pollCharts, 5000);
+    }
+
+    // System volume widget: 1s poll, debounced slider writes.
+    if ($('.volume-panel').length) {
+        const $volumePanels = $('.volume-panel');
+        let volumeValue = null;
+        let volumeMuted = false;
+        let lastUserVolumeAt = 0;
+        let volumeWriteTimer = null;
+
+        const renderVolume = function () {
+            $volumePanels.find('.volume-icon').text(volumeMuted ? '🔇' : '🔊');
+            $volumePanels.find('.volume-mute').text(volumeMuted ? '🔇' : '🔈');
+            // Do not fight the user while they are dragging the slider.
+            if (Date.now() - lastUserVolumeAt > 2000) {
+                $volumePanels.find('.volume-slider').val(volumeValue === null ? 50 : Math.round(volumeValue * 100));
+            }
+        };
+
+        const pollVolume = function () {
+            $.ajax({
+                url: '/api/audio/volume',
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    if (response.status === 1 && response.data) {
+                        volumeValue = response.data.volume / 100;
+                        volumeMuted = !!response.data.muted;
+                        renderVolume();
+                    } else {
+                        $volumePanels.find('.volume-icon').text('–');
+                        $volumePanels.find('.volume-mute').text('–');
+                    }
+                }
+            });
+        };
+
+        $volumePanels.on('input', '.volume-slider', function () {
+            lastUserVolumeAt = Date.now();
+            const value = parseInt($(this).val(), 10);
+            clearTimeout(volumeWriteTimer);
+            volumeWriteTimer = setTimeout(function () {
+                $.ajax({
+                    url: '/api/audio/volume',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({volume: value})
+                });
+            }, 300);
+        });
+
+        $volumePanels.on('click', '.volume-mute', function () {
+            $.ajax({
+                url: '/api/audio/mute',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({muted: !volumeMuted})
+            });
+        });
+
+        pollVolume();
+        setInterval(pollVolume, 1000);
+    }
+
+    // Desktop notifications widget (capture is gated server-side on placement).
+    if ($('.notifications-list').length) {
+        const fmtNotifTime = function (ts) {
+            // Timestamp is RFC3339 from the notifications API.
+            const d = new Date(ts);
+            return isNaN(d.getTime()) ? '' : ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        };
+
+        const renderNotifications = function ($list, items) {
+            const $empty = $list.siblings('.notifications-empty');
+            $list.empty();
+            $empty.prop('hidden', items.length > 0);
+            items.forEach(function (n) {
+                const $row = $('<div class="notification-row">');
+                const $head = $('<div class="notification-head">');
+                $head.append(
+                    $('<span class="notification-app">').text(n.app || ''),
+                    $('<span class="notification-time">').text(fmtNotifTime(n.timestamp))
+                );
+                $row.append(
+                    $head,
+                    $('<div class="notification-summary">').text(n.summary || ''),
+                    $('<div class="notification-body">').text(n.body || '')
+                );
+                $list.append($row);
+            });
+        };
+
+        const pollNotifications = function () {
+            $.ajax({
+                url: '/api/xeneon/notifications',
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    if (response.status === 1 && response.data) {
+                        $('.notifications-list').each(function () {
+                            renderNotifications($(this), response.data.notifications || []);
+                        });
+                    }
+                }
+            });
+        };
+        pollNotifications();
+        setInterval(pollNotifications, 5000);
+    }
+
+    // Launch App buttons: server-rendered by the xeneon-actions template.
+    if ($('.action-btn').length) {
+        $(document).on('click', '.action-btn', function () {
+            const $btn = $(this);
+            if ($btn.prop('disabled')) return;
+            $btn.prop('disabled', true).addClass('running');
+            $.ajax({
+                url: '/api/xeneon/action/' + encodeURIComponent($btn.data('action-id')),
+                method: 'POST',
+                complete: function () {
+                    // Re-enable after the server-side 1s debounce window.
+                    setTimeout(function () {
+                        $btn.prop('disabled', false).removeClass('running');
+                    }, 1000);
+                }
+            });
+        });
+    }
 });

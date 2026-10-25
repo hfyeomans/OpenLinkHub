@@ -14,12 +14,14 @@ import (
 	"OpenLinkHub/src/devices/lcd"
 	"OpenLinkHub/src/devices/xeneonedge"
 	"OpenLinkHub/src/display"
+	"OpenLinkHub/src/history"
 	"OpenLinkHub/src/inputmanager"
 	"OpenLinkHub/src/language"
 	"OpenLinkHub/src/logger"
 	"OpenLinkHub/src/macro"
 	"OpenLinkHub/src/media"
 	"OpenLinkHub/src/metrics"
+	"OpenLinkHub/src/notifications"
 	"OpenLinkHub/src/rgb"
 	"OpenLinkHub/src/scheduler"
 	"OpenLinkHub/src/server/requests"
@@ -1343,6 +1345,173 @@ func getXeneonProfiles(w http.ResponseWriter, _ *http.Request) {
 		"profiles": dev.ProfileNames(),
 		"active":   dev.ActiveProfileName(),
 		"deviceId": xeneon.Serial,
+	}
+	resp.Send(w)
+}
+
+// getXeneonActions returns the configured launcher actions (config page).
+func getXeneonActions(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   map[string]any{"actions": xeneonedge.ListActions()},
+	}
+	resp.Send(w)
+}
+
+// putXeneonActions validates and saves the launcher actions list.
+func putXeneonActions(w http.ResponseWriter, r *http.Request) {
+	req := &struct {
+		Actions []xeneonedge.Action `json:"actions"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtUnableToValidateRequest"),
+		}
+		resp.Send(w)
+		return
+	}
+	if err := xeneonedge.SaveActions(req.Actions); err != nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: err.Error(),
+		}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{Code: http.StatusOK, Status: 1}
+	resp.Send(w)
+}
+
+// postXeneonAction executes one configured action by id.
+func postXeneonAction(w http.ResponseWriter, r *http.Request) {
+	status := xeneonedge.RunAction(r.PathValue("id"))
+	messages := map[uint8]string{
+		0: language.GetValue("txtXeneonActionNotFound"),
+		2: language.GetValue("txtXeneonActionBusy"),
+		3: language.GetValue("txtXeneonActionCooldown"),
+		4: language.GetValue("txtXeneonActionFailed"),
+	}
+	resp := &Response{
+		Code:    http.StatusOK,
+		Status:  int(status),
+		Message: messages[status],
+	}
+	resp.Send(w)
+}
+
+// getXeneonHistory returns buffered sensor samples for the chart widget.
+func getXeneonHistory(w http.ResponseWriter, r *http.Request) {
+	sensor := r.PathValue("sensor")
+	window, err := strconv.Atoi(r.URL.Query().Get("window"))
+	if err != nil || window <= 0 || window > 30 {
+		window = 15
+	}
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data: map[string]any{
+			"sensor": sensor,
+			"window": window,
+			"points": history.Snapshot(sensor, window),
+		},
+	}
+	resp.Send(w)
+}
+
+// getAudioVolume returns default-sink volume (0-100) and mute state.
+func getAudioVolume(w http.ResponseWriter, _ *http.Request) {
+	volume, muted, err := audio.GetSystemVolume()
+	if err != nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtAudioVolumeUnavailable"),
+		}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data: map[string]any{
+			"volume": int(volume*100 + 0.5),
+			"muted":  muted,
+		},
+	}
+	resp.Send(w)
+}
+
+// postAudioVolume sets the default-sink volume (0-100).
+func postAudioVolume(w http.ResponseWriter, r *http.Request) {
+	req := &struct {
+		Volume *float64 `json:"volume"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil || req.Volume == nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtUnableToValidateRequest"),
+		}
+		resp.Send(w)
+		return
+	}
+	v := *req.Volume
+	if v < 0 {
+		v = 0
+	}
+	if v > 100 {
+		v = 100
+	}
+	if err := audio.SetSystemVolume(v / 100); err != nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtAudioVolumeUnavailable"),
+		}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{Code: http.StatusOK, Status: 1}
+	resp.Send(w)
+}
+
+// postAudioMute sets the default-sink mute state.
+func postAudioMute(w http.ResponseWriter, r *http.Request) {
+	req := &struct {
+		Muted *bool `json:"muted"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil || req.Muted == nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtUnableToValidateRequest"),
+		}
+		resp.Send(w)
+		return
+	}
+	if err := audio.SetSystemMute(*req.Muted); err != nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtAudioVolumeUnavailable"),
+		}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{Code: http.StatusOK, Status: 1}
+	resp.Send(w)
+}
+
+// getXeneonNotifications returns the captured desktop notification ring.
+func getXeneonNotifications(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   map[string]any{"notifications": notifications.GetNotifications()},
 	}
 	resp.Send(w)
 }
@@ -2828,6 +2997,9 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/cpuTemp", http.MethodGet, getCpuTemperature)
 	handleFunc(r, "/api/cpuTemp/clean", http.MethodGet, getCpuTemperatureClean)
 	handleFunc(r, "/api/cpuLoad", http.MethodGet, getCpuLoad)
+	handleFunc(r, "/api/audio/volume", http.MethodGet, getAudioVolume)
+	handleFunc(r, "/api/audio/volume", http.MethodPost, postAudioVolume)
+	handleFunc(r, "/api/audio/mute", http.MethodPost, postAudioMute)
 	handleFunc(r, "/api/gpuTemp", http.MethodGet, getGpuTemperature)
 	handleFunc(r, "/api/gpuTemps", http.MethodGet, getGpuTemperatures)
 	handleFunc(r, "/api/gpuTemp/clean", http.MethodGet, getGpuTemperatureClean)
@@ -2839,6 +3011,11 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/gpuExtended", http.MethodGet, getGpuExtended)
 	handleFunc(r, "/api/xeneon/revision", http.MethodGet, getXeneonRevision)
 	handleFunc(r, "/api/xeneon/profiles", http.MethodGet, getXeneonProfiles)
+	handleFunc(r, "/api/xeneon/actions", http.MethodGet, getXeneonActions)
+	handleFunc(r, "/api/xeneon/actions", http.MethodPut, putXeneonActions)
+	handleFunc(r, "/api/xeneon/action/{id}", http.MethodPost, postXeneonAction)
+	handleFunc(r, "/api/xeneon/history/{sensor}", http.MethodGet, getXeneonHistory)
+	handleFunc(r, "/api/xeneon/notifications", http.MethodGet, getXeneonNotifications)
 	handleFunc(r, "/api/xeneon/media", http.MethodGet, getXeneonMedia)
 	handleFunc(r, "/api/xeneon/media/", http.MethodGet, xeneonedge.PerformMediaServe)
 	handleFunc(r, "/api/storageTemp", http.MethodGet, getStorageTemperature)

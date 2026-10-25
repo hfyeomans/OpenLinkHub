@@ -8,6 +8,8 @@ import (
 	"OpenLinkHub/src/common"
 	"OpenLinkHub/src/config"
 	"OpenLinkHub/src/logger"
+	"OpenLinkHub/src/notifications"
+
 	"encoding/json"
 	"fmt"
 	"github.com/sstallion/go-hid"
@@ -89,6 +91,8 @@ type Widget struct {
 	TextColor       string  `json:"textColor"`
 	Url             string  `json:"url"`
 	Channel         string  `json:"channel"`
+	Sensor          string  `json:"sensor"`
+	Window          int     `json:"window"`
 	MediaFile       string  `json:"mediaFile"`
 	Fit             string  `json:"fit"`
 	Interval        int     `json:"interval"`
@@ -121,6 +125,30 @@ var (
 
 var twitchChannelRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,25}$`)
 
+// sensorKeyRegex validates history sensor keys like cpu-temp, cpu-load,
+// gpu-0-temp, gpu-1-load or storage-2-temp (see the history package).
+var sensorKeyRegex = regexp.MustCompile(`^[a-z]+(-[0-9]+)?-(temp|load)$`)
+
+// notificationsPlaced reports whether the active profile shows the
+// notifications widget in any area; capture runs only while it is visible.
+func (d *Device) notificationsPlaced() bool {
+	if d.DeviceProfile == nil {
+		return false
+	}
+	for _, area := range d.DeviceProfile.WidgetAreas {
+		if w := d.getProfileWidget(area.WidgetId); w != nil && w.Template == "xeneon-notifications" {
+			return true
+		}
+	}
+	return false
+}
+
+// updateNotificationsCapture syncs the notification monitor's capture gate
+// with the current widget placement.
+func (d *Device) updateNotificationsCapture() {
+	notifications.SetCapture(d.notificationsPlaced())
+}
+
 func Init(vendorId, productId uint16, _, path string) *common.Device {
 	// Set global working directory
 	pwd = config.GetConfig().ConfigPath
@@ -146,8 +174,9 @@ func Init(vendorId, productId uint16, _, path string) *common.Device {
 	d.getSerial()          // Serial
 	d.loadWidgets()        // Widgets
 	d.loadDeviceProfiles() // Load all device profiles
-	d.saveDeviceProfile()  // Save profile
-	d.createDevice()       // Device register
+	d.updateNotificationsCapture()
+	d.saveDeviceProfile() // Save profile
+	d.createDevice()      // Device register
 	logger.Log(logger.Fields{"serial": d.Serial, "product": d.Product}).Info("Device successfully initialized")
 	return d.instance
 }
@@ -241,6 +270,7 @@ func (d *Device) ChangeDeviceProfile(profileName string) uint8 {
 		newProfile.Active = true
 		d.DeviceProfile = newProfile
 		d.saveDeviceProfile()
+		d.updateNotificationsCapture()
 		return 1
 	}
 	return 0
@@ -502,6 +532,7 @@ func (d *Device) UpdateWidgetArea(areaId int, widgetId int) uint8 {
 	if widgetId == 0 {
 		d.DeviceProfile.WidgetAreas[areaId] = WidgetArea{}
 		d.saveDeviceProfile()
+		d.updateNotificationsCapture()
 		return 1
 	}
 
@@ -523,6 +554,7 @@ func (d *Device) UpdateWidgetArea(areaId int, widgetId int) uint8 {
 
 	d.DeviceProfile.WidgetAreas[areaId] = WidgetArea{WidgetId: widgetId}
 	d.saveDeviceProfile()
+	d.updateNotificationsCapture()
 	return 1
 }
 
@@ -572,6 +604,8 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 		TextColor       *string  `json:"textColor"`
 		Url             *string  `json:"url"`
 		Channel         *string  `json:"channel"`
+		Sensor          *string  `json:"sensor"`
+		Window          *int     `json:"window"`
 		MediaFile       *string  `json:"mediaFile"`
 		Fit             *string  `json:"fit"`
 		Interval        *int     `json:"interval"`
@@ -649,6 +683,21 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 			return 0
 		}
 		widget.Channel = channel
+	}
+	if settings.Sensor != nil {
+		sensor := strings.TrimSpace(*settings.Sensor)
+		if len(sensor) > 0 && !sensorKeyRegex.MatchString(sensor) {
+			return 0
+		}
+		widget.Sensor = sensor
+	}
+	if settings.Window != nil {
+		switch *settings.Window {
+		case 5, 15, 30:
+			widget.Window = *settings.Window
+		default:
+			return 0
+		}
 	}
 	if settings.MediaFile != nil {
 		if len(*settings.MediaFile) > 0 && !IsValidMediaFile(*settings.MediaFile) {
@@ -879,6 +928,7 @@ func (d *Device) loadDeviceProfiles() {
 	}
 	d.UserProfiles = profileList
 	d.getDeviceProfile()
+	d.updateNotificationsCapture()
 }
 
 // ensureAreas backfills any area ids missing from a stored profile (e.g. the

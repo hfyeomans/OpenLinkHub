@@ -285,7 +285,7 @@
       "dataColor": "#22d3ee",
       "max": 80,
       "headerText": "Storage 1 Temp",
-      "unit": "°C",
+      "unit": "\u00b0C",
       "textColor": "#a1a1a1"
     },
     {
@@ -299,7 +299,7 @@
       "dataColor": "#818cf8",
       "max": 80,
       "headerText": "Storage 2 Temp",
-      "unit": "°C",
+      "unit": "\u00b0C",
       "textColor": "#a1a1a1"
     },
     {
@@ -335,6 +335,55 @@
         3
       ],
       "url": "/static/edge-widgets/stopwatch/",
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 27,
+      "name": "Launch App",
+      "template": "xeneon-actions",
+      "columns": [
+        1,
+        3
+      ],
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 28,
+      "name": "Sensor Chart",
+      "template": "xeneon-chart",
+      "columns": [
+        1,
+        3
+      ],
+      "sensor": "cpu-temp",
+      "window": 15,
+      "headerText": "CPU Temp",
+      "unit": "\u00b0C",
+      "dataColor": "#38bdf8",
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 26,
+      "name": "Volume",
+      "template": "xeneon-volume",
+      "columns": [
+        1,
+        3
+      ],
+      "minSpan": 1,
+      "maxSpan": 3
+    },
+    {
+      "id": 29,
+      "name": "Notifications",
+      "template": "xeneon-notifications",
+      "columns": [
+        1,
+        3
+      ],
       "minSpan": 1,
       "maxSpan": 3
     }

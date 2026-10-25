@@ -1810,6 +1810,7 @@ $(document).ready(function () {
         const isImage = template === 'xeneon-image';
         const isSlideshow = template === 'xeneon-slideshow';
         const isTwitch = template === 'xeneon-twitch-chat' || template === 'xeneon-twitch-live';
+        const isChart = template === 'xeneon-chart';
         const isWebUrl = template === 'xeneon-weburl';
 
         const weatherRows = `
@@ -1931,6 +1932,25 @@ $(document).ready(function () {
             </div>
         `;
 
+        const chartRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtSensor', 'Sensor key')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetSensor"><input type="text" id="widgetSensor" autocomplete="off" placeholder="cpu-temp, gpu-0-load, storage-1-temp"></label>
+                </div>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtWindow', 'Window')}</span>
+                <label for="widgetWindow">
+                    <select id="widgetWindow" class="system-select auto-width compact">
+                        <option value="5">${i18n.t('txtMinutes5', '5 minutes')}</option>
+                        <option value="15">${i18n.t('txtMinutes15', '15 minutes')}</option>
+                        <option value="30">${i18n.t('txtMinutes30', '30 minutes')}</option>
+                    </select>
+                </label>
+            </div>
+        `;
+
         // Thermal widgets own their text color as a type control (it predates the
         // custom-style system), so their style section toggles background only.
         const styleTextRow = isThermal ? '' : `
@@ -1970,6 +1990,8 @@ $(document).ready(function () {
             typeRows = weburlRows;
         } else if (isTwitch) {
             typeRows = twitchRows;
+        } else if (isChart) {
+            typeRows = chartRows;
         }
 
         const openModal = function (mediaFiles) {
@@ -2035,6 +2057,9 @@ $(document).ready(function () {
                     modal.find('#widgetUrl').val($btn.attr('data-url'));
                 } else if (isTwitch) {
                     modal.find('#widgetChannel').val($btn.attr('data-channel'));
+                } else if (isChart) {
+                    modal.find('#widgetSensor').val($btn.attr('data-sensor'));
+                    modal.find('#widgetWindow').val($btn.attr('data-window') || '15');
                 }
 
                 const backgroundColor = $btn.attr('data-backgroundcolor') || '';
@@ -2102,6 +2127,14 @@ $(document).ready(function () {
                             return false;
                         }
                         widgetData.channel = channel;
+                    } else if (isChart) {
+                        const sensor = modal.find('#widgetSensor').val().trim();
+                        if (!/^[a-z]+(-[0-9]+)?-(temp|load)$/.test(sensor)) {
+                            toast.warning(i18n.t('txtXeneonInvalidSensor', 'Sensor key must look like cpu-temp, gpu-0-load or storage-1-temp'));
+                            return false;
+                        }
+                        widgetData.sensor = sensor;
+                        widgetData.window = parseInt(modal.find('#widgetWindow').val());
                     }
 
                     // Custom style. Thermal text color is saved above as a type control;
