@@ -149,4 +149,9 @@ Five mocked launcher tests, shell syntax and ShellCheck passed, including EDID
 card renumbering and failed-health checks refusing to launch. The deployed
 `~/xeneon-cage.sh` matches the tracked dedicated launcher. Before/after screenshots,
 the original launcher and the local permission repair are retained in
-`~/.local/state/xeneon-repair-20261026/`. A further cold reboot has not been run.
+`~/.local/state/xeneon-repair-20261026/`. The operator subsequently rebooted and
+confirmed that the dashboard returned successfully.
+
+The panel font adjustments increase ring numbers by 20%, temperature units by
+50%, and GPU monitor text by 20%. Live screenshots confirmed the temperature
+labels fit inside the rings; the operator approved the GPU monitor sizing.

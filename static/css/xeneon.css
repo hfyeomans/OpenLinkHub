@@ -817,10 +817,10 @@ code {
 }
 
 /* GPU Monitor (nvtop) widget — span-tiered font sizing */
-#xeneon-nvtop { --nv-fs: 12px; }
-#xeneon-nvtop[data-span="1"] { --nv-fs: 15px; }
-#xeneon-nvtop[data-span="2"] { --nv-fs: 12.5px; }
-#xeneon-nvtop[data-span="3"] { --nv-fs: 11px; }
+#xeneon-nvtop { --nv-fs: 14.4px; }
+#xeneon-nvtop[data-span="1"] { --nv-fs: 18px; }
+#xeneon-nvtop[data-span="2"] { --nv-fs: 15px; }
+#xeneon-nvtop[data-span="3"] { --nv-fs: 13.2px; }
 .nvtop-panel .card-body {
     overflow-y: auto !important;
     color: #e7e9ee;
@@ -1120,7 +1120,10 @@ code {
    the digits inside rings at the panel's viewport. */
 @media (min-width: 2200px) and (max-height: 760px) {
     .ring-chart .center .chart-value {
-        font-size: clamp(40px, 8vh, 72px);
+        font-size: clamp(48px, 9.6vh, 86.4px);
         line-height: 1;
+    }
+    :is(#xeneon-cpu-temp, .gpu-temp-widget, .storage-temp-widget) .ring-chart .center .big {
+        font-size: clamp(21px, 3.75vh, 42px);
     }
 }
