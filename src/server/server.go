@@ -35,8 +35,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -933,7 +935,7 @@ func mediaPlaybackControl(w http.ResponseWriter, r *http.Request) {
 			inputmanager.InputControlKeyboard(inputmanager.MediaStop, false)
 			break
 		case "play":
-			inputmanager.InputControlKeyboard(inputmanager.MediaPrev, false)
+			inputmanager.InputControlKeyboard(inputmanager.MediaPlayPause, false)
 			break
 		case "next":
 			inputmanager.InputControlKeyboard(inputmanager.MediaNext, false)
@@ -1013,8 +1015,19 @@ func spotifyExchange(w http.ResponseWriter, r *http.Request) {
 // spotifyCallback captures the authorization code when the Spotify redirect is
 // reachable (e.g. via an SSH tunnel to this host) and completes the connection.
 func spotifyCallback(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
 	message := "Spotify connected. You can close this tab and return to OpenLinkHub."
+	// The state parameter proves the redirect was initiated by this server
+	// (login CSRF): without it an attacker could replay a stolen code.
+	if !spotify.VerifyState(r.URL.Query().Get("state")) {
+		message = "Invalid or missing state parameter. Please try connecting again from OpenLinkHub."
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte("<!doctype html><meta charset=utf-8><title>Spotify</title>" +
+			"<body style=\"font-family:sans-serif;background:#111;color:#eee;padding:40px\"><h2>" +
+			html.EscapeString(message) + "</h2></body>"))
+		return
+	}
+	code := r.URL.Query().Get("code")
 	if code == "" {
 		message = "No authorization code was provided."
 	} else if err := spotify.Exchange(code); err != nil {
@@ -3197,7 +3210,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/devices/probes/", http.MethodGet, getTemperatureProbes)
 	handleFunc(r, "/api/devices/mouse", http.MethodGet, getMouseDevice)
 	handleFunc(r, "/api/media/playback", http.MethodGet, getMediaPlayback)
-	handleFunc(r, "/api/media/", http.MethodGet, mediaPlaybackControl)
+	handleFunc(r, "/api/media/", http.MethodPost, mediaPlaybackControl)
 	handleFunc(r, "/api/spotify/status", http.MethodGet, getSpotifyStatus)
 	handleFunc(r, "/api/spotify/authUrl", http.MethodGet, getSpotifyAuthURL)
 	handleFunc(r, "/api/spotify/nowPlaying", http.MethodGet, getSpotifyNowPlaying)
@@ -3396,6 +3409,63 @@ func corsHandler(next http.Handler) http.Handler {
 	})
 }
 
+// serverHosts lists every Host value that identifies this server. originHandler
+// accepts a mutating request only when the Origin host is one of them, so a
+// DNS-rebinding page (attacker domain resolving to 127.0.0.1) can no longer
+// pass a Host-vs-Origin self-comparison.
+var serverHosts = map[string]bool{}
+
+// buildServerHosts derives the acceptable Host set from the configured listen
+// address and port: the loopback forms plus the bound address (or, for a
+// wildcard bind, every interface IP and the machine hostname).
+func buildServerHosts() map[string]bool {
+	port := config.GetConfig().ListenPort
+	hosts := make(map[string]bool)
+	add := func(host string) {
+		host = strings.ToLower(strings.TrimSpace(host))
+		if host == "" {
+			return
+		}
+		hosts[host] = true
+		// On port 80 clients omit the port, so the port-less form is the same origin.
+		if port == 80 {
+			hosts[strings.TrimSuffix(host, ":80")] = true
+		}
+	}
+	withPort := func(host string) {
+		add(net.JoinHostPort(host, strconv.Itoa(port)))
+	}
+	// Loopback forms are always acceptable (the default binding).
+	withPort("127.0.0.1")
+	withPort("::1")
+	withPort("localhost")
+
+	switch strings.ToLower(strings.TrimSpace(config.GetConfig().ListenAddress)) {
+	case "", "0.0.0.0", "::", "[::]", "*":
+		// Wildcard bind: reachable on every interface and via the hostname.
+		if ifaces, err := net.Interfaces(); err == nil {
+			for _, iface := range ifaces {
+				addrs, aerr := iface.Addrs()
+				if aerr != nil {
+					continue
+				}
+				for _, a := range addrs {
+					ip, _, perr := net.ParseCIDR(a.String())
+					if perr == nil && ip.IsGlobalUnicast() {
+						withPort(ip.String())
+					}
+				}
+			}
+		}
+		if hostname, herr := os.Hostname(); herr == nil {
+			withPort(hostname)
+		}
+	default:
+		withPort(strings.Trim(config.GetConfig().ListenAddress, "[]"))
+	}
+	return hosts
+}
+
 // originHandler rejects cross-origin mutating requests. A web page in the
 // kiosk browser could otherwise drive the unauthenticated JSON endpoints via
 // CORS-simple requests (no preflight); browsers always attach Origin on
@@ -3406,7 +3476,7 @@ func originHandler(next http.Handler) http.Handler {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			if origin := r.Header.Get("Origin"); origin != "" {
 				u, perr := url.Parse(origin)
-				if perr != nil || u.Host != r.Host {
+				if perr != nil || !serverHosts[u.Host] {
 					logger.Log(logger.Fields{"origin": origin, "host": r.Host, "path": r.URL.Path}).Warn("Blocked cross-origin mutating request")
 					http.Error(w, language.GetValue("txtCrossOriginBlocked"), http.StatusForbidden)
 					return
@@ -3436,13 +3506,21 @@ func Init() {
 
 	if config.GetConfig().ListenPort > 0 {
 		templates.Init()
+		serverHosts = buildServerHosts()
 		server = &http.Server{
 			Addr: fmt.Sprintf(
 				"%s:%v",
 				config.GetConfig().ListenAddress,
 				config.GetConfig().ListenPort,
 			),
-			Handler: setRoutes(),
+			// The server has no streaming/SSE/websocket endpoints, so bounded
+			// read/write deadlines cannot cut off a long-lived response and are
+			// set to stop slowloris-style resource exhaustion.
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			WriteTimeout:      60 * time.Second,
+			IdleTimeout:       120 * time.Second,
+			Handler:           setRoutes(),
 		}
 
 		fmt.Println(

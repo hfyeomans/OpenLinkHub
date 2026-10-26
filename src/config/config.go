@@ -7,10 +7,12 @@ package config
 import (
 	"OpenLinkHub/src/common"
 	"encoding/json"
+	"log"
 	"os"
 	"os/user"
 	"slices"
 	"strings"
+	"sync"
 )
 
 type Configuration struct {
@@ -51,6 +53,7 @@ type Configuration struct {
 var (
 	location      = ""
 	configuration Configuration
+	configMu      sync.Mutex
 	upgrade       = map[string]any{
 		"memorySku":                 "",
 		"resumeDelay":               15000,
@@ -97,21 +100,40 @@ func Init() {
 
 	f, err := os.Open(location)
 	if err != nil {
-		panic(err.Error())
+		log.Printf("Unable to open config file %s: %v, falling back to defaults", location, err)
+		configuration = *defaultConfiguration()
+		configuration.ConfigPath = configPath
+		return
 	}
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			log.Printf("Unable to close config file %s: %v", location, closeErr)
+		}
+	}()
 	if err = json.NewDecoder(f).Decode(&configuration); err != nil {
-		panic(err.Error())
+		log.Printf("Unable to decode config file %s: %v, falling back to defaults", location, err)
+		configuration = *defaultConfiguration()
 	}
 	configuration.ConfigPath = configPath
 }
 
 // GetConfig will return structs.Configuration struct
 func GetConfig() Configuration {
-	return configuration
+	configMu.Lock()
+	defer configMu.Unlock()
+
+	cfg := configuration
+	if cfg.Exclude != nil {
+		cfg.Exclude = append([]uint16(nil), cfg.Exclude...)
+	}
+	return cfg
 }
 
 // UpdateSupportedDevices will update the Exclude slice based on the enabled flag for each product ID
 func UpdateSupportedDevices(productIds map[uint16]bool) uint8 {
+	configMu.Lock()
+	defer configMu.Unlock()
+
 	for productId, enabled := range productIds {
 		if enabled {
 			if i := slices.Index(configuration.Exclude, productId); i != -1 {
@@ -123,7 +145,10 @@ func UpdateSupportedDevices(productIds map[uint16]bool) uint8 {
 			}
 		}
 	}
-	saveConfigSettings(configuration)
+	if err := saveConfigSettings(configuration); err != nil {
+		log.Printf("Unable to save config file %s: %v", location, err)
+		return 0
+	}
 	return 1
 }
 
@@ -132,99 +157,86 @@ func IsSystemService() bool {
 	return systemService
 }
 
+// defaultConfiguration returns the configuration used when the config file is
+// missing, corrupt, or truncated.
+func defaultConfiguration() *Configuration {
+	return &Configuration{
+		Debug:                     false,
+		ListenPort:                27003,
+		ListenAddress:             "127.0.0.1",
+		CPUSensorChip:             "",
+		Manual:                    false,
+		Frontend:                  true,
+		Metrics:                   false,
+		Memory:                    false,
+		MemorySmBus:               "i2c-0",
+		MemoryType:                5,
+		Exclude:                   make([]uint16, 0),
+		MemorySku:                 "",
+		ResumeDelay:               15000,
+		LogLevel:                  "info",
+		LogFile:                   "",
+		EnhancementKits:           make([]byte, 0),
+		TemperatureOffset:         0,
+		AMDGpuIndex:               0,
+		AMDSmiPath:                "",
+		CheckDevicePermission:     false,
+		CpuTempFile:               "",
+		GraphProfiles:             true,
+		RamTempViaHwmon:           true,
+		NvidiaGpuIndex:            []int{0},
+		DefaultNvidiaGPU:          0,
+		OpenRGBPort:               6743,
+		EnableOpenRGBTargetServer: false,
+		EnableGamepad:             true,
+		EnableMotherboard:         false,
+		MotherboardBiosOnExit:     false,
+		MemoryRegisterOverride:    make([]byte, 0),
+	}
+}
+
 // upgradeFile will create or upgrade config file
 func upgradeFile(cfg string) {
 	if !common.FileExists(cfg) {
-		value := &Configuration{
-			Debug:                     false,
-			ListenPort:                27003,
-			ListenAddress:             "127.0.0.1",
-			CPUSensorChip:             "",
-			Manual:                    false,
-			Frontend:                  true,
-			Metrics:                   false,
-			Memory:                    false,
-			MemorySmBus:               "i2c-0",
-			MemoryType:                5,
-			Exclude:                   make([]uint16, 0),
-			MemorySku:                 "",
-			ResumeDelay:               15000,
-			LogLevel:                  "info",
-			LogFile:                   "",
-			EnhancementKits:           make([]byte, 0),
-			TemperatureOffset:         0,
-			AMDGpuIndex:               0,
-			AMDSmiPath:                "",
-			CheckDevicePermission:     false,
-			CpuTempFile:               "",
-			GraphProfiles:             true,
-			RamTempViaHwmon:           true,
-			NvidiaGpuIndex:            []int{0},
-			DefaultNvidiaGPU:          0,
-			OpenRGBPort:               6743,
-			EnableOpenRGBTargetServer: false,
-			EnableGamepad:             true,
-			EnableMotherboard:         false,
-			MotherboardBiosOnExit:     false,
-			MemoryRegisterOverride:    make([]byte, 0),
+		if err := saveConfigSettings(defaultConfiguration()); err != nil {
+			log.Printf("Unable to create config file %s: %v", cfg, err)
 		}
-		saveConfigSettings(value)
-	} else {
-		save := false
-		var data map[string]interface{}
-		file, err := os.Open(location)
-		defer func(file *os.File) {
-			err = file.Close()
-			if err != nil {
-				panic(err.Error())
-			}
-		}(file)
+		return
+	}
 
-		if err != nil {
-			panic(err.Error())
-		}
-		if err = json.NewDecoder(file).Decode(&data); err != nil {
-			panic(err.Error())
-		}
+	save := false
+	var data map[string]interface{}
+	file, err := os.Open(cfg)
+	if err != nil {
+		log.Printf("Unable to open config file %s for upgrade: %v", cfg, err)
+		return
+	}
+	if err = json.NewDecoder(file).Decode(&data); err != nil {
+		_ = file.Close()
+		log.Printf("Unable to decode config file %s for upgrade: %v", cfg, err)
+		return
+	}
+	if err = file.Close(); err != nil {
+		log.Printf("Unable to close config file %s: %v", cfg, err)
+	}
 
-		// Loop thru upgrade value
-		for key, value := range upgrade {
-			if _, ok := data[key]; !ok {
-				data[key] = value
-				save = true
-			}
+	// Loop thru upgrade value
+	for key, value := range upgrade {
+		if _, ok := data[key]; !ok {
+			data[key] = value
+			save = true
 		}
-		if save {
-			saveConfigSettings(data)
+	}
+	if save {
+		if err = saveConfigSettings(data); err != nil {
+			log.Printf("Unable to upgrade config file %s: %v", cfg, err)
 		}
 	}
 }
 
 // SaveConfigSettings will save dashboard settings
-func saveConfigSettings(data any) {
-	// Convert to JSON
-	buffer, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// Create profile filename
-	file, err := os.Create(location)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// Write JSON buffer to file
-	_, err = file.Write(buffer)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// Close file
-	err = file.Close()
-	if err != nil {
-		panic(err.Error())
-	}
+func saveConfigSettings(data any) error {
+	return common.SaveJsonData(location, data)
 }
 
 // setSystemService will check and set systemService state

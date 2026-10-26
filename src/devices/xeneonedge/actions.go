@@ -3,10 +3,16 @@ package xeneonedge
 // Launch App actions for the XENEON EDGE touchscreen.
 //
 // Actions are user-defined launchers stored in database/xeneon/actions.json.
-// Execution is deliberately restrictive: no shell, argv slices only,
-// absolute executable paths, arg-count and byte limits, per-action timeout,
+// Execution is deliberately restrictive: argv slices only, absolute canonical
+// executable paths, arg-count and byte limits, per-action timeout,
 // single-flight and a short debounce so a touchscreen double-tap cannot
 // spawn duplicates.
+//
+// Shells, script interpreters (including versioned names such as python3.12)
+// and exec-forwarding utilities (env, nohup, xargs, ...) are rejected by path
+// and basename: the argv[0] check cannot see the interpreter a forwarding
+// utility dispatches to, so they are blocked outright. Exotic forwarding
+// chains not in the denylist are not covered.
 
 import (
 	"context"
@@ -16,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -59,6 +66,20 @@ var (
 	actionsStates = make(map[string]*actionState)
 )
 
+// deniedCommandNames lists exec-forwarding utilities that actions must never
+// launch: the argv[0] check cannot see the interpreter these dispatch to, so
+// they are rejected outright, matched against both the executable path and
+// its basename.
+var deniedCommandNames = map[string]struct{}{
+	"env": {}, "nohup": {}, "nice": {}, "timeout": {}, "setsid": {},
+	"stdbuf": {}, "taskset": {}, "ionice": {}, "xargs": {}, "find": {},
+}
+
+// versionedInterpreterRegex matches shell and script interpreter names,
+// optionally version-suffixed (e.g. "python3.12", "node20"). These are
+// rejected by basename, both as given and after symlink resolution.
+var versionedInterpreterRegex = regexp.MustCompile(`^(sh|bash|dash|ash|zsh|python|python2|python3|perl|ruby|php|node|pwsh|powershell|osascript|cmd)([0-9][0-9.]*)?$`)
+
 func actionsFile() string {
 	return pwd + "/database/xeneon/actions.json"
 }
@@ -90,6 +111,22 @@ func validateAction(a Action) error {
 	}
 	if info.IsDir() || info.Mode()&0111 == 0 {
 		return fmt.Errorf("command for id %q is not an executable file", a.ID)
+	}
+	base := filepath.Base(clean)
+	if _, denied := deniedCommandNames[base]; denied {
+		return fmt.Errorf("command %q for id %q is an exec-forwarding utility and is not allowed", a.Command, a.ID)
+	}
+	if versionedInterpreterRegex.MatchString(base) {
+		return fmt.Errorf("command %q for id %q is a shell or interpreter and is not allowed", a.Command, a.ID)
+	}
+	if resolved, err := filepath.EvalSymlinks(clean); err == nil {
+		resolvedBase := filepath.Base(resolved)
+		if _, denied := deniedCommandNames[resolvedBase]; denied {
+			return fmt.Errorf("command %q for id %q resolves to an exec-forwarding utility and is not allowed", a.Command, a.ID)
+		}
+		if versionedInterpreterRegex.MatchString(resolvedBase) {
+			return fmt.Errorf("command %q for id %q resolves to a shell or interpreter and is not allowed", a.Command, a.ID)
+		}
 	}
 	if len(a.Args) > actionMaxArgs {
 		return fmt.Errorf("too many args for id %q (max %d)", a.ID, actionMaxArgs)

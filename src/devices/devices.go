@@ -427,7 +427,14 @@ func GetDevice(deviceId string) interface{} {
 
 // GetDevices will return all available devices
 func GetDevices() map[string]*common.Device {
-	return devices
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	devicesCopy := make(map[string]*common.Device, len(devices))
+	for key, device := range devices {
+		devicesCopy[key] = device
+	}
+	return devicesCopy
 }
 
 // GetMouse will return all available mouse devices
