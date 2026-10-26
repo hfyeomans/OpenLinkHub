@@ -8,6 +8,8 @@ import (
 	"OpenLinkHub/src/common"
 	"OpenLinkHub/src/config"
 	"OpenLinkHub/src/logger"
+	"OpenLinkHub/src/notifications"
+
 	"encoding/json"
 	"fmt"
 	"github.com/sstallion/go-hid"
@@ -36,7 +38,13 @@ type DeviceProfile struct {
 	Serial      string
 	WidgetAreas map[int]WidgetArea
 	RgbOff      bool
-	Widgets     []Widget `json:"widgets"`
+	// DDC/CI display values (nil = unset, not restored). RGB is raw 0..255.
+	DisplayBrightness *int     `json:"displayBrightness,omitempty"`
+	DisplayContrast   *int     `json:"displayContrast,omitempty"`
+	DisplayRed        *int     `json:"displayRed,omitempty"`
+	DisplayGreen      *int     `json:"displayGreen,omitempty"`
+	DisplayBlue       *int     `json:"displayBlue,omitempty"`
+	Widgets           []Widget `json:"widgets"`
 }
 
 type WidgetArea struct {
@@ -88,6 +96,9 @@ type Widget struct {
 	Unit            string  `json:"unit"`
 	TextColor       string  `json:"textColor"`
 	Url             string  `json:"url"`
+	Channel         string  `json:"channel"`
+	Sensor          string  `json:"sensor"`
+	Window          int     `json:"window"`
 	MediaFile       string  `json:"mediaFile"`
 	Fit             string  `json:"fit"`
 	Interval        int     `json:"interval"`
@@ -118,6 +129,79 @@ var (
 	hexColorRegex = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
 
+var twitchChannelRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,25}$`)
+
+// sensorKeyRegex validates history sensor keys like cpu-temp, cpu-load,
+// gpu-0-temp, gpu-1-load or storage-2-temp (see the history package).
+var sensorKeyRegex = regexp.MustCompile(`^[a-z]+(-[0-9]+)?-(temp|load)$`)
+
+// notificationsPlaced reports whether the active profile shows the
+// notifications widget in any area; capture runs only while it is visible.
+func (d *Device) notificationsPlaced() bool {
+	if d.DeviceProfile == nil {
+		return false
+	}
+	for _, area := range d.DeviceProfile.WidgetAreas {
+		if w := d.getProfileWidget(area.WidgetId); w != nil && w.Template == "xeneon-notifications" {
+			return true
+		}
+	}
+	return false
+}
+
+// updateNotificationsCapture syncs the notification monitor's capture gate
+// with the current widget placement.
+func (d *Device) updateNotificationsCapture() {
+	notifications.SetCapture(d.notificationsPlaced())
+}
+
+// restoreDisplaySettings re-applies persisted DDC/CI values. Failures are
+// tolerated: a code may be unavailable this session.
+func (d *Device) restoreDisplaySettings() {
+	if d.DeviceProfile == nil {
+		return
+	}
+	pf := d.DeviceProfile
+	values := map[string]*int{
+		"brightness": pf.DisplayBrightness,
+		"contrast":   pf.DisplayContrast,
+		"red":        pf.DisplayRed,
+		"green":      pf.DisplayGreen,
+		"blue":       pf.DisplayBlue,
+	}
+	for key, value := range values {
+		if value != nil {
+			_ = SetDisplaySetting(key, *value)
+		}
+	}
+}
+
+// SaveDisplaySettings persists DDC/CI values into the active profile so they
+// survive a restart. Values are applied by the caller (the API route).
+func (d *Device) SaveDisplaySettings(values map[string]int) uint8 {
+	if d.DeviceProfile == nil {
+		return 0
+	}
+	pf := d.DeviceProfile
+	for key, value := range values {
+		v := value
+		switch key {
+		case "brightness":
+			pf.DisplayBrightness = &v
+		case "contrast":
+			pf.DisplayContrast = &v
+		case "red":
+			pf.DisplayRed = &v
+		case "green":
+			pf.DisplayGreen = &v
+		case "blue":
+			pf.DisplayBlue = &v
+		}
+	}
+	d.saveDeviceProfile()
+	return 1
+}
+
 func Init(vendorId, productId uint16, _, path string) *common.Device {
 	// Set global working directory
 	pwd = config.GetConfig().ConfigPath
@@ -143,8 +227,10 @@ func Init(vendorId, productId uint16, _, path string) *common.Device {
 	d.getSerial()          // Serial
 	d.loadWidgets()        // Widgets
 	d.loadDeviceProfiles() // Load all device profiles
-	d.saveDeviceProfile()  // Save profile
-	d.createDevice()       // Device register
+	d.updateNotificationsCapture()
+	d.restoreDisplaySettings()
+	d.saveDeviceProfile() // Save profile
+	d.createDevice()      // Device register
 	logger.Log(logger.Fields{"serial": d.Serial, "product": d.Product}).Info("Device successfully initialized")
 	return d.instance
 }
@@ -238,6 +324,7 @@ func (d *Device) ChangeDeviceProfile(profileName string) uint8 {
 		newProfile.Active = true
 		d.DeviceProfile = newProfile
 		d.saveDeviceProfile()
+		d.updateNotificationsCapture()
 		return 1
 	}
 	return 0
@@ -452,6 +539,27 @@ func (d *Device) SegmentSlots(areaIds ...int) []RenderSlot {
 	return slots
 }
 
+// ProfileNames returns the profile names in deterministic order for the kiosk
+// swipe UI (UserProfiles is a map, so order it explicitly).
+func (d *Device) ProfileNames() []string {
+	names := make([]string, 0, len(d.UserProfiles))
+	for name := range d.UserProfiles {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// ActiveProfileName returns the active profile's name, or "" when none is active.
+func (d *Device) ActiveProfileName() string {
+	for name, pf := range d.UserProfiles {
+		if pf.Active {
+			return name
+		}
+	}
+	return ""
+}
+
 // getProfileWidget will return a widget from the active device profile
 func (d *Device) getProfileWidget(widgetId int) *Widget {
 	if d.DeviceProfile == nil {
@@ -478,6 +586,7 @@ func (d *Device) UpdateWidgetArea(areaId int, widgetId int) uint8 {
 	if widgetId == 0 {
 		d.DeviceProfile.WidgetAreas[areaId] = WidgetArea{}
 		d.saveDeviceProfile()
+		d.updateNotificationsCapture()
 		return 1
 	}
 
@@ -499,6 +608,7 @@ func (d *Device) UpdateWidgetArea(areaId int, widgetId int) uint8 {
 
 	d.DeviceProfile.WidgetAreas[areaId] = WidgetArea{WidgetId: widgetId}
 	d.saveDeviceProfile()
+	d.updateNotificationsCapture()
 	return 1
 }
 
@@ -547,6 +657,9 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 		Unit            *string  `json:"unit"`
 		TextColor       *string  `json:"textColor"`
 		Url             *string  `json:"url"`
+		Channel         *string  `json:"channel"`
+		Sensor          *string  `json:"sensor"`
+		Window          *int     `json:"window"`
 		MediaFile       *string  `json:"mediaFile"`
 		Fit             *string  `json:"fit"`
 		Interval        *int     `json:"interval"`
@@ -613,10 +726,39 @@ func (d *Device) UpdateWidgetSettings(widgetId int, data string) uint8 {
 		if len(url) > 512 {
 			return 0
 		}
-		if len(url) > 0 && !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			return 0
+		if len(url) > 0 {
+			if strings.HasPrefix(url, "/api/xeneon/widgets/") {
+				// Internal custom-widget URLs are only valid on the custom template.
+				if widget.Template != "xeneon-custom" || !IsValidWidgetUrl(url) {
+					return 0
+				}
+			} else if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+				return 0
+			}
 		}
 		widget.Url = url
+	}
+	if settings.Channel != nil {
+		channel := strings.TrimSpace(*settings.Channel)
+		if len(channel) > 0 && !twitchChannelRegex.MatchString(channel) {
+			return 0
+		}
+		widget.Channel = channel
+	}
+	if settings.Sensor != nil {
+		sensor := strings.TrimSpace(*settings.Sensor)
+		if len(sensor) > 0 && !sensorKeyRegex.MatchString(sensor) {
+			return 0
+		}
+		widget.Sensor = sensor
+	}
+	if settings.Window != nil {
+		switch *settings.Window {
+		case 5, 15, 30:
+			widget.Window = *settings.Window
+		default:
+			return 0
+		}
 	}
 	if settings.MediaFile != nil {
 		if len(*settings.MediaFile) > 0 && !IsValidMediaFile(*settings.MediaFile) {
@@ -847,6 +989,7 @@ func (d *Device) loadDeviceProfiles() {
 	}
 	d.UserProfiles = profileList
 	d.getDeviceProfile()
+	d.updateNotificationsCapture()
 }
 
 // ensureAreas backfills any area ids missing from a stored profile (e.g. the

@@ -918,19 +918,49 @@ func SaveJsonData(path string, data interface{}) error {
 		return err
 	}
 
-	file, fileErr := os.Create(path)
-	if fileErr != nil {
-		return fileErr
+	// Write to a temporary file in the same directory and atomically rename it
+	// over the target so a crash mid-write cannot leave a truncated file behind.
+	dir := filepath.Dir(path)
+	file, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
+	tmp := file.Name()
+	defer func() {
+		_ = os.Remove(tmp) // no-op once the file has been renamed
+	}()
 
-		}
-	}(file)
+	// Preserve the target file's permissions, defaulting to 0600 for new files.
+	mode := os.FileMode(0600)
+	if info, statErr := os.Stat(path); statErr == nil {
+		mode = info.Mode().Perm()
+	}
+	if err = file.Chmod(mode); err != nil {
+		_ = file.Close()
+		return err
+	}
 
-	_, err = file.Write(buffer)
-	return err
+	if _, err = file.Write(buffer); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if err = file.Sync(); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if err = file.Close(); err != nil {
+		return err
+	}
+	if err = os.Rename(tmp, path); err != nil {
+		return err
+	}
+
+	// Best-effort fsync of the directory so the rename itself is durable.
+	if dirFile, dirErr := os.Open(dir); dirErr == nil {
+		_ = dirFile.Sync()
+		_ = dirFile.Close()
+	}
+	return nil
 }
 
 // InRange will validate if value is in range

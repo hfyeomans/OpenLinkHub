@@ -689,6 +689,20 @@
         "txtSurfaceSelection": "Sélection de surface",
         "txtInvalidSurfaceSelectionOption": "Option de sélection de surface non valide",
         "txtSurfaceSelectionUpdated": "La sélection de surface a été mise à jour avec succès",
-        "txtUnableToUpdateSurfaceSelection": "Impossible de mettre à jour la sélection de surface"
+        "txtUnableToUpdateSurfaceSelection": "Impossible de mettre à jour la sélection de surface",
+        "txtSpotify": "Spotify",
+        "txtSpotifyClientId": "ID client",
+        "txtSpotifyClientSecret": "Secret client",
+        "txtSpotifySaveCreds": "Enregistrer les identifiants",
+        "txtSpotifyGetAuth": "Obtenir le lien d'autorisation",
+        "txtSpotifyPasteCode": "Coller le code de la redirection",
+        "txtSpotifyConnect": "Connecter",
+        "txtSpotifyDisconnect": "Déconnecter",
+        "txtSpotifyCredentialsSaved": "Identifiants Spotify enregistrés",
+        "txtSpotifyConnected": "Spotify connecté",
+        "txtSpotifyDisconnected": "Spotify déconnecté",
+        "txtSpotifyInvalidAction": "Action de contrôle invalide",
+        "txtSpotifyIdle": "Aucune lecture en cours sur Spotify",
+        "txtWidgetNotPlaced": "Non placé"
     }
 }

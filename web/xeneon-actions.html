@@ -1,0 +1,26 @@
+{{ define "xeneon-actions" }}
+{{ $root := .Root }}
+{{ $widget := .Widget }}
+{{ $device := .Device }}
+<div class="edge-panel" id="xeneon-actions-{{ $widget.Id }}"{{ with .Span }} style="flex-grow: {{ . }};"{{ end }}>
+    <div class="card system-card"{{ template "widget-card-style" $widget }}>
+        <div class="card-body actions-body">
+            {{ with $device }}
+            {{ $actions := .Actions }}
+            {{ if $actions }}
+            <div class="action-grid">
+                {{ range $action := $actions }}
+                <button class="action-btn" type="button" data-action-id="{{ $action.ID }}" title="{{ $action.Name }}">
+                    <span class="action-icon">{{ $action.Icon }}</span>
+                    <span class="action-name">{{ $action.Name }}</span>
+                </button>
+                {{ end }}
+            </div>
+            {{ else }}
+            <div class="media-placeholder">{{ $root.Lang "txtXeneonNoActions" }}</div>
+            {{ end }}
+            {{ end }}
+        </div>
+    </div>
+</div>
+{{ end }}

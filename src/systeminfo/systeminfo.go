@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type AmdGfxActivity struct {
@@ -146,6 +147,7 @@ type AMDGPUModelData struct {
 
 var (
 	info             *SystemInfo
+	cpuUtilMutex     sync.Mutex
 	prevTotal        = 0
 	prevIdle         = 0
 	gpuIndex         = 0
@@ -751,6 +753,10 @@ func GetCpuUtilization() float64 {
 			total := user + nice + system + idle + iowait + irq + softirq
 			idleTime := idle + iowait
 
+			// Concurrent callers (API handlers and the history sampler)
+			// must not interleave this read-modify-write.
+			cpuUtilMutex.Lock()
+			defer cpuUtilMutex.Unlock()
 			totalDiff := total - prevTotal
 			idleDiff := idleTime - prevIdle
 

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';" />
+    <title>Stopwatch</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <div class="stopwatch">
+        <div class="sw-display" id="swDisplay">00:00.00</div>
+        <div class="sw-controls">
+            <button class="sw-btn secondary" id="swLap" disabled>Lap</button>
+            <button class="sw-btn primary" id="swToggle">Start</button>
+            <button class="sw-btn secondary" id="swReset" disabled>Reset</button>
+        </div>
+        <ol class="sw-laps" id="swLaps"></ol>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>

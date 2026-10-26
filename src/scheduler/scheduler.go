@@ -103,9 +103,11 @@ func UpdateRgbSettings(enabled bool, start, end string, lcdControl bool) uint8 {
 	scheduler.RGBControl = enabled
 	scheduler.LCDControl = lcdControl
 	current := scheduler
+	// Persist while holding the lock so concurrent writers cannot overwrite
+	// each other with stale snapshots.
+	SaveSchedulerSettings(current)
 	mu.Unlock()
 
-	SaveSchedulerSettings(current)
 	if current.RGBControl {
 		startTasks()
 	} else {
@@ -169,13 +171,13 @@ func startTasks() {
 					scheduler.LightsOut = true
 					lcdControl := scheduler.LCDControl
 					current := scheduler
+					SaveSchedulerSettings(current)
 					mu.Unlock()
 
 					devices.ScheduleDeviceBrightness(0)
 					if lcdControl {
 						devices.ScheduleDeviceLcdBrightness(0)
 					}
-					SaveSchedulerSettings(current)
 				} else {
 					mu.Unlock()
 				}
@@ -190,13 +192,13 @@ func startTasks() {
 					scheduler.LightsOut = false
 					lcdControl := scheduler.LCDControl
 					current := scheduler
+					SaveSchedulerSettings(current)
 					mu.Unlock()
 
 					devices.ScheduleDeviceBrightness(1)
 					if lcdControl {
 						devices.ScheduleDeviceLcdBrightness(1)
 					}
-					SaveSchedulerSettings(current)
 				} else {
 					mu.Unlock()
 				}
@@ -224,13 +226,13 @@ func startTasks() {
 				scheduler.LightsOut = true
 				lcdControl := scheduler.LCDControl
 				current := scheduler
+				SaveSchedulerSettings(current)
 				mu.Unlock()
 
 				devices.ScheduleDeviceBrightness(0)
 				if lcdControl {
 					devices.ScheduleDeviceLcdBrightness(0)
 				}
-				SaveSchedulerSettings(current)
 			} else {
 				mu.Unlock()
 			}
@@ -240,13 +242,13 @@ func startTasks() {
 				scheduler.LightsOut = false
 				lcdControl := scheduler.LCDControl
 				current := scheduler
+				SaveSchedulerSettings(current)
 				mu.Unlock()
 
 				devices.ScheduleDeviceBrightness(1)
 				if lcdControl {
 					devices.ScheduleDeviceLcdBrightness(1)
 				}
-				SaveSchedulerSettings(current)
 			} else {
 				mu.Unlock()
 			}
@@ -291,18 +293,28 @@ func upgradeFile() {
 		var data map[string]interface{}
 		file, err := os.Open(location)
 		if err != nil {
-			logger.Log(logger.Fields{"error": err, "file": location}).Error("Unable to open file.")
-			panic(err.Error())
-		}
-		defer func() {
-			if err := file.Close(); err != nil {
-				logger.Log(logger.Fields{"error": err, "file": location}).Error("Failed to close file.")
-			}
-		}()
+			// A truncated or unreadable scheduler file must not brick the boot:
+			// back it up, fall back to defaults, and write a clean file.
+			backupCorruptFile(location, err)
+			data = make(map[string]interface{})
+			save = true
+		} else {
+			defer func() {
+				if err := file.Close(); err != nil {
+					logger.Log(logger.Fields{"error": err, "file": location}).Error("Failed to close file.")
+				}
+			}()
 
-		if err = json.NewDecoder(file).Decode(&data); err != nil {
-			logger.Log(logger.Fields{"error": err, "file": location}).Error("Unable to decode file.")
-			panic(err.Error())
+			if err = json.NewDecoder(file).Decode(&data); err != nil {
+				backupCorruptFile(location, err)
+				data = make(map[string]interface{})
+				save = true
+			}
+		}
+
+		// Guard against a file that decodes to JSON null.
+		if data == nil {
+			data = make(map[string]interface{})
 		}
 
 		// Loop thru upgrade value
@@ -320,5 +332,16 @@ func upgradeFile() {
 		} else {
 			logger.Log(logger.Fields{"file": location}).Info("Nothing to upgrade.")
 		}
+	}
+}
+
+// backupCorruptFile renames an unreadable scheduler file aside so a fresh one
+// can be written; a damaged state file must never prevent the daemon from
+// starting.
+func backupCorruptFile(path string, cause error) {
+	logger.Log(logger.Fields{"error": cause, "file": path}).Error("Scheduler file is corrupt, backing it up and starting fresh.")
+	backup := path + ".corrupt-" + time.Now().Format("20060102-150405")
+	if err := os.Rename(path, backup); err != nil {
+		logger.Log(logger.Fields{"error": err, "file": path}).Warn("Unable to back up corrupt scheduler file, overwriting it.")
 	}
 }

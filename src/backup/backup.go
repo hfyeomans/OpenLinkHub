@@ -250,6 +250,13 @@ func hashAndZipFolder(src string, archive *zip.Writer, hasher io.Writer) error {
 				return walkErr
 			}
 
+			// Never include the Spotify credentials file in backups: it
+			// holds the client secret and refresh token.
+			if filePath == filepath.Join(src, "spotify.json") {
+				logger.Log(logger.Fields{"file": filePath}).Warn("Skipping secret file in backup")
+				return nil
+			}
+
 			if info.Mode()&os.ModeSymlink != 0 {
 				return fmt.Errorf("symlinks are not supported in backup: %s", filePath)
 			}
@@ -549,13 +556,21 @@ func unzipFile(src, dest string) error {
 		if strings.Contains(f.Name, "..") {
 			return fmt.Errorf("illegal path: %s", f.Name)
 		}
-		
+
 		cleanName, err := validateArchiveEntry(f)
 		if err != nil {
 			return err
 		}
 
 		if cleanName == hashFileName {
+			continue
+		}
+
+		// Never restore the Spotify credentials file: a crafted backup
+		// could plant attacker-controlled client credentials used to
+		// harvest OAuth tokens.
+		if cleanName == "database/spotify.json" {
+			logger.Log(logger.Fields{"file": cleanName}).Warn("Skipping spotify.json during restore")
 			continue
 		}
 
@@ -601,6 +616,11 @@ func unzipFile(src, dest string) error {
 		}
 
 		perm := f.Mode().Perm()
+		if perm&0o111 != 0 {
+			logger.Log(logger.Fields{"file": cleanName, "mode": perm}).Warn("Stripping executable bits from restored file")
+			perm &^= 0o111
+		}
+
 		if perm == 0 {
 			perm = 0o600
 		}
@@ -722,14 +742,11 @@ func validateArchiveEntry(f *zip.File) (string, error) {
 	return cleanName, nil
 }
 
-// applyRestore replaces the current database and config.json
+// applyRestore replaces the current database
 func performRestore(stagingDir, dest string) error {
 	stagedDatabase := filepath.Join(stagingDir, "database")
-	stagedConfig := filepath.Join(stagingDir, "config.json")
 	destDatabase := filepath.Join(dest, "database")
-	destConfig := filepath.Join(dest, "config.json")
 	oldDatabase := filepath.Join(stagingDir, ".old-database")
-	oldConfig := filepath.Join(stagingDir, ".old-config.json")
 
 	// Verify staged database.
 	dbInfo, err := os.Lstat(stagedDatabase)
@@ -741,15 +758,9 @@ func performRestore(stagingDir, dest string) error {
 		return fmt.Errorf("restored database is invalid")
 	}
 
-	// Verify staged config.json.
-	configInfo, err := os.Lstat(stagedConfig)
-	if err != nil {
-		return fmt.Errorf("restored config.json is missing: %w", err)
-	}
-
-	if !configInfo.Mode().IsRegular() || configInfo.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("restored config.json is invalid")
-	}
+	// Restoring config.json is disabled: it would replace daemon
+	// configuration (e.g. listenAddress, amdsmiPath) with backup content.
+	logger.Log(logger.Fields{"file": filepath.Join(stagingDir, "config.json")}).Warn("Skipping config.json during restore")
 
 	// Move existing database into the staging directory.
 	hadDatabase, err := moveExisting(destDatabase, oldDatabase)
@@ -757,41 +768,8 @@ func performRestore(stagingDir, dest string) error {
 		return fmt.Errorf("unable to prepare current database for restore: %w", err)
 	}
 
-	// Move existing config into the staging directory.
-	hadConfig, err := moveExisting(destConfig, oldConfig)
-	if err != nil {
-		if hadDatabase {
-			_ = os.Rename(oldDatabase, destDatabase)
-		}
-		return fmt.Errorf("unable to prepare current config.json for restore: %w", err)
-	}
-
-	dbInstalled := false
-	configInstalled := false
-
 	rollback := func(originalErr error) error {
 		var rollbackErrors []string
-
-		// Remove newly installed config.json.
-		if configInstalled {
-			if err := os.Remove(destConfig); err != nil && !os.IsNotExist(err) {
-				rollbackErrors = append(rollbackErrors, "remove restored config.json: "+err.Error())
-			}
-		}
-
-		// Remove newly installed database.
-		if dbInstalled {
-			if err := os.RemoveAll(destDatabase); err != nil && !os.IsNotExist(err) {
-				rollbackErrors = append(rollbackErrors, "remove restored database: "+err.Error())
-			}
-		}
-
-		// Restore original config.
-		if hadConfig {
-			if err := os.Rename(oldConfig, destConfig); err != nil {
-				rollbackErrors = append(rollbackErrors, "restore original config.json: "+err.Error())
-			}
-		}
 
 		// Restore original database.
 		if hadDatabase {
@@ -813,23 +791,9 @@ func performRestore(stagingDir, dest string) error {
 		)
 	}
 
-	dbInstalled = true
-
-	if err := os.Rename(stagedConfig, destConfig); err != nil {
-		return rollback(fmt.Errorf("unable to install restored config.json: %w", err))
-	}
-
-	configInstalled = true
-
 	if hadDatabase {
 		if err := os.RemoveAll(oldDatabase); err != nil {
 			logger.Log(logger.Fields{"error": err}).Warn("Unable to remove previous database after restore")
-		}
-	}
-
-	if hadConfig {
-		if err := os.Remove(oldConfig); err != nil && !os.IsNotExist(err) {
-			logger.Log(logger.Fields{"error": err}).Warn("Unable to remove previous config.json after restore")
 		}
 	}
 

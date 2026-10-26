@@ -14,12 +14,14 @@ import (
 	"OpenLinkHub/src/devices/lcd"
 	"OpenLinkHub/src/devices/xeneonedge"
 	"OpenLinkHub/src/display"
+	"OpenLinkHub/src/history"
 	"OpenLinkHub/src/inputmanager"
 	"OpenLinkHub/src/language"
 	"OpenLinkHub/src/logger"
 	"OpenLinkHub/src/macro"
 	"OpenLinkHub/src/media"
 	"OpenLinkHub/src/metrics"
+	"OpenLinkHub/src/notifications"
 	"OpenLinkHub/src/rgb"
 	"OpenLinkHub/src/scheduler"
 	"OpenLinkHub/src/server/requests"
@@ -33,7 +35,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -883,7 +888,7 @@ func getLanguageData(w http.ResponseWriter, _ *http.Request) {
 	resp := &Response{
 		Code:   http.StatusOK,
 		Status: 1,
-		Data:   language.GetLanguage(""),
+		Data:   language.GetLanguageForRender(),
 	}
 	resp.Send(w)
 }
@@ -930,7 +935,7 @@ func mediaPlaybackControl(w http.ResponseWriter, r *http.Request) {
 			inputmanager.InputControlKeyboard(inputmanager.MediaStop, false)
 			break
 		case "play":
-			inputmanager.InputControlKeyboard(inputmanager.MediaPrev, false)
+			inputmanager.InputControlKeyboard(inputmanager.MediaPlayPause, false)
 			break
 		case "next":
 			inputmanager.InputControlKeyboard(inputmanager.MediaNext, false)
@@ -1010,8 +1015,19 @@ func spotifyExchange(w http.ResponseWriter, r *http.Request) {
 // spotifyCallback captures the authorization code when the Spotify redirect is
 // reachable (e.g. via an SSH tunnel to this host) and completes the connection.
 func spotifyCallback(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
 	message := "Spotify connected. You can close this tab and return to OpenLinkHub."
+	// The state parameter proves the redirect was initiated by this server
+	// (login CSRF): without it an attacker could replay a stolen code.
+	if !spotify.VerifyState(r.URL.Query().Get("state")) {
+		message = "Invalid or missing state parameter. Please try connecting again from OpenLinkHub."
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte("<!doctype html><meta charset=utf-8><title>Spotify</title>" +
+			"<body style=\"font-family:sans-serif;background:#111;color:#eee;padding:40px\"><h2>" +
+			html.EscapeString(message) + "</h2></body>"))
+		return
+	}
+	code := r.URL.Query().Get("code")
 	if code == "" {
 		message = "No authorization code was provided."
 	} else if err := spotify.Exchange(code); err != nil {
@@ -1313,6 +1329,310 @@ func getXeneonRevision(w http.ResponseWriter, _ *http.Request) {
 		Code:   http.StatusOK,
 		Status: 1,
 		Data:   xeneonedge.ConfigRevision(),
+	}
+	resp.Send(w)
+}
+
+// getXeneonProfiles returns the Edge profile names plus the active one for the
+// kiosk swipe UI (UserProfiles is not serialized into the device payload).
+func getXeneonProfiles(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{Code: http.StatusOK, Status: 0}
+	var xeneon *common.Device
+	for _, val := range devices.GetDevices() {
+		if val.ProductType == common.ProductTypeXeneonEdge {
+			xeneon = val
+		}
+	}
+	if xeneon == nil {
+		resp.Message = language.GetValue("txtXeneonEdgeUnavailable")
+		resp.Send(w)
+		return
+	}
+	dev, ok := xeneon.Instance.(*xeneonedge.Device)
+	if !ok {
+		resp.Message = language.GetValue("txtXeneonEdgeUnavailable")
+		resp.Send(w)
+		return
+	}
+	resp.Status = 1
+	resp.Data = map[string]any{
+		"profiles": dev.ProfileNames(),
+		"active":   dev.ActiveProfileName(),
+		"deviceId": xeneon.Serial,
+	}
+	resp.Send(w)
+}
+
+// getXeneonActions returns the configured launcher actions (config page).
+func getXeneonActions(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   map[string]any{"actions": xeneonedge.ListActions()},
+	}
+	resp.Send(w)
+}
+
+// putXeneonActions validates and saves the launcher actions list.
+func putXeneonActions(w http.ResponseWriter, r *http.Request) {
+	req := &struct {
+		Actions []xeneonedge.Action `json:"actions"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtUnableToValidateRequest"),
+		}
+		resp.Send(w)
+		return
+	}
+	if err := xeneonedge.SaveActions(req.Actions); err != nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: err.Error(),
+		}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{Code: http.StatusOK, Status: 1}
+	resp.Send(w)
+}
+
+// postXeneonAction executes one configured action by id.
+func postXeneonAction(w http.ResponseWriter, r *http.Request) {
+	status := xeneonedge.RunAction(r.PathValue("id"))
+	messages := map[uint8]string{
+		0: language.GetValue("txtXeneonActionNotFound"),
+		2: language.GetValue("txtXeneonActionBusy"),
+		3: language.GetValue("txtXeneonActionCooldown"),
+		4: language.GetValue("txtXeneonActionFailed"),
+	}
+	resp := &Response{
+		Code:    http.StatusOK,
+		Status:  int(status),
+		Message: messages[status],
+	}
+	resp.Send(w)
+}
+
+// getXeneonHistory returns buffered sensor samples for the chart widget.
+func getXeneonHistory(w http.ResponseWriter, r *http.Request) {
+	sensor := r.PathValue("sensor")
+	window, err := strconv.Atoi(r.URL.Query().Get("window"))
+	if err != nil || window <= 0 || window > 30 {
+		window = 15
+	}
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data: map[string]any{
+			"sensor": sensor,
+			"window": window,
+			"points": history.Snapshot(sensor, window),
+		},
+	}
+	resp.Send(w)
+}
+
+// getAudioVolume returns default-sink volume (0-100) and mute state.
+func getAudioVolume(w http.ResponseWriter, _ *http.Request) {
+	volume, muted, err := audio.GetSystemVolume()
+	if err != nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtAudioVolumeUnavailable"),
+		}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data: map[string]any{
+			"volume": int(volume*100 + 0.5),
+			"muted":  muted,
+		},
+	}
+	resp.Send(w)
+}
+
+// postAudioVolume sets the default-sink volume (0-100).
+func postAudioVolume(w http.ResponseWriter, r *http.Request) {
+	req := &struct {
+		Volume *float64 `json:"volume"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil || req.Volume == nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtUnableToValidateRequest"),
+		}
+		resp.Send(w)
+		return
+	}
+	v := *req.Volume
+	if v < 0 {
+		v = 0
+	}
+	if v > 100 {
+		v = 100
+	}
+	if err := audio.SetSystemVolume(v / 100); err != nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtAudioVolumeUnavailable"),
+		}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{Code: http.StatusOK, Status: 1}
+	resp.Send(w)
+}
+
+// postAudioMute sets the default-sink mute state.
+func postAudioMute(w http.ResponseWriter, r *http.Request) {
+	req := &struct {
+		Muted *bool `json:"muted"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil || req.Muted == nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtUnableToValidateRequest"),
+		}
+		resp.Send(w)
+		return
+	}
+	if err := audio.SetSystemMute(*req.Muted); err != nil {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtAudioVolumeUnavailable"),
+		}
+		resp.Send(w)
+		return
+	}
+	resp := &Response{Code: http.StatusOK, Status: 1}
+	resp.Send(w)
+}
+
+// getXeneonNotifications returns the captured desktop notification ring.
+func getXeneonNotifications(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   map[string]any{"notifications": notifications.GetNotifications()},
+	}
+	resp.Send(w)
+}
+
+// xeneonWidgetsList returns the uploaded custom widget list (config page).
+func xeneonWidgetsList(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   xeneonedge.ListWidgets(),
+	}
+	resp.Send(w)
+}
+
+// getXeneonDisplay returns current DDC/CI display settings per code.
+func getXeneonDisplay(w http.ResponseWriter, _ *http.Request) {
+	resp := &Response{
+		Code:   http.StatusOK,
+		Status: 1,
+		Data:   xeneonedge.GetDisplaySettings(),
+	}
+	resp.Send(w)
+}
+
+// postXeneonDisplay applies a partial DDC/CI update (code -> raw value)
+// and persists it on the active device profile.
+func postXeneonDisplay(w http.ResponseWriter, r *http.Request) {
+	req := &map[string]int{}
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil || len(*req) == 0 {
+		resp := &Response{
+			Code:    http.StatusOK,
+			Status:  0,
+			Message: language.GetValue("txtUnableToValidateRequest"),
+		}
+		resp.Send(w)
+		return
+	}
+	settings := xeneonedge.GetDisplaySettings()
+	// Validate everything first so a mid-loop failure cannot leave the
+	// panel half-updated.
+	applied := make(map[string]int, len(*req))
+	for key, value := range *req {
+		setting, ok := settings[key]
+		if !ok || !setting.Available {
+			resp := &Response{
+				Code:    http.StatusOK,
+				Status:  0,
+				Message: language.GetValue("txtDisplayUnavailable"),
+			}
+			resp.Send(w)
+			return
+		}
+		if value < 0 || value > setting.Max {
+			resp := &Response{
+				Code:    http.StatusOK,
+				Status:  0,
+				Message: language.GetValue("txtUnableToValidateRequest"),
+			}
+			resp.Send(w)
+			return
+		}
+		applied[key] = value
+	}
+	for key, value := range applied {
+		if err := xeneonedge.SetDisplaySetting(key, value); err != nil {
+			resp := &Response{
+				Code:    http.StatusOK,
+				Status:  0,
+				Message: language.GetValue("txtDisplayUnavailable"),
+			}
+			resp.Send(w)
+			return
+		}
+	}
+	var xeneon *common.Device
+	for _, val := range devices.GetDevices() {
+		if val.ProductType == common.ProductTypeXeneonEdge {
+			xeneon = val
+		}
+	}
+	if xeneon != nil {
+		if dev, ok := xeneon.Instance.(*xeneonedge.Device); ok {
+			dev.SaveDisplaySettings(applied)
+		}
+	}
+	resp := &Response{Code: http.StatusOK, Status: 1}
+	resp.Send(w)
+}
+
+// xeneonWidgetDelete removes an uploaded custom widget (refused while referenced).
+func xeneonWidgetDelete(w http.ResponseWriter, r *http.Request) {
+	resp := &Response{Code: http.StatusOK, Status: 0}
+	req := &struct {
+		Slug string `json:"slug"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		resp.Message = language.GetValue("txtWidgetNotDeleted")
+		resp.Send(w)
+		return
+	}
+	switch xeneonedge.DeleteWidget(req.Slug) {
+	case 1:
+		resp.Status, resp.Message = 1, language.GetValue("txtWidgetDeleted")
+	case 2:
+		resp.Message = language.GetValue("txtWidgetInUse")
+	default:
+		resp.Message = language.GetValue("txtWidgetNotDeleted")
 	}
 	resp.Send(w)
 }
@@ -2781,9 +3101,34 @@ func handleFunc(mux *http.ServeMux, path, method string, handler func(w http.Res
 	})
 }
 
+// handleFuncMethods registers one path with per-method handlers. ServeMux
+// patterns here carry no method prefix, so handlers that share a path must
+// share a single registration.
+func handleFuncMethods(mux *http.ServeMux, path string, methods map[string]func(w http.ResponseWriter, r *http.Request)) {
+	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		if handler, ok := methods[r.Method]; ok {
+			handler(w, r)
+			return
+		}
+		http.Error(w, language.GetValue("txtMethodNotAllowed"), http.StatusMethodNotAllowed)
+	})
+}
+
 // setRoutes will set up all routes
 func setRoutes() http.Handler {
 	r := http.NewServeMux()
+	// Custom widgets: refuse deletion while a profile widget references the slug.
+	xeneonedge.WidgetInUseHook = func(slug string) bool {
+		for _, val := range devices.GetDevices() {
+			if val.ProductType != common.ProductTypeXeneonEdge {
+				continue
+			}
+			if dev, ok := val.Instance.(*xeneonedge.Device); ok {
+				return dev.ProfileReferencesWidget(slug)
+			}
+		}
+		return false
+	}
 	fs := http.FileServer(http.Dir("./static"))
 	// Revalidate static assets on every load so template/CSS/JS updates are not
 	// masked by a stale browser cache (files still return 304 when unchanged).
@@ -2798,6 +3143,11 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/cpuTemp", http.MethodGet, getCpuTemperature)
 	handleFunc(r, "/api/cpuTemp/clean", http.MethodGet, getCpuTemperatureClean)
 	handleFunc(r, "/api/cpuLoad", http.MethodGet, getCpuLoad)
+	handleFuncMethods(r, "/api/audio/volume", map[string]func(w http.ResponseWriter, r *http.Request){
+		http.MethodGet:  getAudioVolume,
+		http.MethodPost: postAudioVolume,
+	})
+	handleFunc(r, "/api/audio/mute", http.MethodPost, postAudioMute)
 	handleFunc(r, "/api/gpuTemp", http.MethodGet, getGpuTemperature)
 	handleFunc(r, "/api/gpuTemps", http.MethodGet, getGpuTemperatures)
 	handleFunc(r, "/api/gpuTemp/clean", http.MethodGet, getGpuTemperatureClean)
@@ -2808,6 +3158,24 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/gpuStats", http.MethodGet, getGpuStats)
 	handleFunc(r, "/api/gpuExtended", http.MethodGet, getGpuExtended)
 	handleFunc(r, "/api/xeneon/revision", http.MethodGet, getXeneonRevision)
+	handleFunc(r, "/api/xeneon/profiles", http.MethodGet, getXeneonProfiles)
+	handleFuncMethods(r, "/api/xeneon/actions", map[string]func(w http.ResponseWriter, r *http.Request){
+		http.MethodGet: getXeneonActions,
+		http.MethodPut: putXeneonActions,
+	})
+	handleFunc(r, "/api/xeneon/action/{id}", http.MethodPost, postXeneonAction)
+	handleFunc(r, "/api/xeneon/history/{sensor}", http.MethodGet, getXeneonHistory)
+	handleFunc(r, "/api/xeneon/notifications", http.MethodGet, getXeneonNotifications)
+	handleFuncMethods(r, "/api/xeneon/widgets", map[string]func(w http.ResponseWriter, r *http.Request){
+		http.MethodGet:    xeneonWidgetsList,
+		http.MethodDelete: xeneonWidgetDelete,
+	})
+	handleFuncMethods(r, "/api/xeneon/display", map[string]func(w http.ResponseWriter, r *http.Request){
+		http.MethodGet:  getXeneonDisplay,
+		http.MethodPost: postXeneonDisplay,
+	})
+	handleFunc(r, "/api/xeneon/widgets/", http.MethodGet, xeneonedge.ServeWidget)
+	handleFunc(r, "/api/xeneon/widgets/upload", http.MethodPost, xeneonedge.PerformWidgetUpload)
 	handleFunc(r, "/api/xeneon/media", http.MethodGet, getXeneonMedia)
 	handleFunc(r, "/api/xeneon/media/", http.MethodGet, xeneonedge.PerformMediaServe)
 	handleFunc(r, "/api/storageTemp", http.MethodGet, getStorageTemperature)
@@ -2842,7 +3210,7 @@ func setRoutes() http.Handler {
 	handleFunc(r, "/api/devices/probes/", http.MethodGet, getTemperatureProbes)
 	handleFunc(r, "/api/devices/mouse", http.MethodGet, getMouseDevice)
 	handleFunc(r, "/api/media/playback", http.MethodGet, getMediaPlayback)
-	handleFunc(r, "/api/media/", http.MethodGet, mediaPlaybackControl)
+	handleFunc(r, "/api/media/", http.MethodPost, mediaPlaybackControl)
 	handleFunc(r, "/api/spotify/status", http.MethodGet, getSpotifyStatus)
 	handleFunc(r, "/api/spotify/authUrl", http.MethodGet, getSpotifyAuthURL)
 	handleFunc(r, "/api/spotify/nowPlaying", http.MethodGet, getSpotifyNowPlaying)
@@ -2996,7 +3364,127 @@ func setRoutes() http.Handler {
 		handleFunc(r, "/settings", http.MethodGet, uiSettings)
 		handleFunc(r, "/xeneon", http.MethodGet, uiXeneon)
 	}
-	return r
+	// CORS whitelist: read-only system-data GETs get Access-Control-Allow-Origin
+	// so sandboxed custom widgets (opaque origin) can fetch them. Mutating
+	// endpoints stay CORS-free.
+	return corsHandler(originHandler(r))
+}
+
+var corsExactPaths = map[string]bool{
+	"/api/cpuTemp": true, "/api/cpuTemp/clean": true, "/api/cpuLoad": true,
+	"/api/gpuTemp": true, "/api/gpuTemp/clean": true, "/api/gpuLoad": true,
+	"/api/gpuStats": true, "/api/storageTemp": true, "/api/batteryStats": true,
+	"/api/media/playback": true, "/api/spotify/nowPlaying": true,
+	"/api/xeneon/media": true, "/api/xeneon/revision": true,
+}
+
+var corsPrefixPaths = []string{
+	"/api/language/", "/api/gpuTemp/clean/", "/api/gpuLoad/", "/api/storageTemp/clean/",
+}
+
+func corsAllowed(path string) bool {
+	if corsExactPaths[path] {
+		return true
+	}
+	for _, prefix := range corsPrefixPaths {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func corsHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if corsAllowed(r.URL.Path) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			if r.Method == http.MethodOptions {
+				w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD")
+				w.Header().Set("Access-Control-Max-Age", "600")
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// serverHosts lists every Host value that identifies this server. originHandler
+// accepts a mutating request only when the Origin host is one of them, so a
+// DNS-rebinding page (attacker domain resolving to 127.0.0.1) can no longer
+// pass a Host-vs-Origin self-comparison.
+var serverHosts = map[string]bool{}
+
+// buildServerHosts derives the acceptable Host set from the configured listen
+// address and port: the loopback forms plus the bound address (or, for a
+// wildcard bind, every interface IP and the machine hostname).
+func buildServerHosts() map[string]bool {
+	port := config.GetConfig().ListenPort
+	hosts := make(map[string]bool)
+	add := func(host string) {
+		host = strings.ToLower(strings.TrimSpace(host))
+		if host == "" {
+			return
+		}
+		hosts[host] = true
+		// On port 80 clients omit the port, so the port-less form is the same origin.
+		if port == 80 {
+			hosts[strings.TrimSuffix(host, ":80")] = true
+		}
+	}
+	withPort := func(host string) {
+		add(net.JoinHostPort(host, strconv.Itoa(port)))
+	}
+	// Loopback forms are always acceptable (the default binding).
+	withPort("127.0.0.1")
+	withPort("::1")
+	withPort("localhost")
+
+	switch strings.ToLower(strings.TrimSpace(config.GetConfig().ListenAddress)) {
+	case "", "0.0.0.0", "::", "[::]", "*":
+		// Wildcard bind: reachable on every interface and via the hostname.
+		if ifaces, err := net.Interfaces(); err == nil {
+			for _, iface := range ifaces {
+				addrs, aerr := iface.Addrs()
+				if aerr != nil {
+					continue
+				}
+				for _, a := range addrs {
+					ip, _, perr := net.ParseCIDR(a.String())
+					if perr == nil && ip.IsGlobalUnicast() {
+						withPort(ip.String())
+					}
+				}
+			}
+		}
+		if hostname, herr := os.Hostname(); herr == nil {
+			withPort(hostname)
+		}
+	default:
+		withPort(strings.Trim(config.GetConfig().ListenAddress, "[]"))
+	}
+	return hosts
+}
+
+// originHandler rejects cross-origin mutating requests. A web page in the
+// kiosk browser could otherwise drive the unauthenticated JSON endpoints via
+// CORS-simple requests (no preflight); browsers always attach Origin on
+// cross-origin fetches and cannot suppress it. Non-browser clients (curl,
+// scripts) send no Origin and pass.
+func originHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if origin := r.Header.Get("Origin"); origin != "" {
+				u, perr := url.Parse(origin)
+				if perr != nil || !serverHosts[u.Host] {
+					logger.Log(logger.Fields{"origin": origin, "host": r.Host, "path": r.URL.Path}).Warn("Blocked cross-origin mutating request")
+					http.Error(w, language.GetValue("txtCrossOriginBlocked"), http.StatusForbidden)
+					return
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Init will start a new web server used for metrics and fan control
@@ -3018,13 +3506,21 @@ func Init() {
 
 	if config.GetConfig().ListenPort > 0 {
 		templates.Init()
+		serverHosts = buildServerHosts()
 		server = &http.Server{
 			Addr: fmt.Sprintf(
 				"%s:%v",
 				config.GetConfig().ListenAddress,
 				config.GetConfig().ListenPort,
 			),
-			Handler: setRoutes(),
+			// The server has no streaming/SSE/websocket endpoints, so bounded
+			// read/write deadlines cannot cut off a long-lived response and are
+			// set to stop slowloris-style resource exhaustion.
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			WriteTimeout:      60 * time.Second,
+			IdleTimeout:       120 * time.Second,
+			Handler:           setRoutes(),
 		}
 
 		fmt.Println(

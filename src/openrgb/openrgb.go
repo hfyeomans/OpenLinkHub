@@ -33,8 +33,10 @@ const (
 )
 
 const (
-	headerSize             = 16 // headerSize Header is 4 bytes magic ('ORGB') + 3 × uint32
-	protocolVersion uint32 = 4  // protocolVersion OpenRGB clients will ask for this protocol version.
+	headerSize             = 16               // headerSize Header is 4 bytes magic ('ORGB') + 3 × uint32
+	protocolVersion uint32 = 4                // protocolVersion OpenRGB clients will ask for this protocol version.
+	readTimeout            = 10 * time.Second // readTimeout bounds each request round on a connection
+	maxPacketSize          = 1024 * 1024      // maxPacketSize limits client-supplied payload size to 1 MiB
 )
 
 var (
@@ -228,16 +230,18 @@ func handleConn(conn net.Conn) {
 		}
 	}()
 
-	err := conn.SetDeadline(time.Time{})
-	if err != nil {
-		if debug {
-			logger.Log(logger.Fields{"error": err}).Error("Failed to set deadline")
-		}
-		return
-	}
-
 	var clientName = "openlinkhub"
 	for {
+		// Bound each request round so a stalled client cannot pin the
+		// connection and its goroutine forever.
+		err := conn.SetReadDeadline(time.Now().Add(readTimeout))
+		if err != nil {
+			if debug {
+				logger.Log(logger.Fields{"error": err}).Error("Failed to set read deadline")
+			}
+			return
+		}
+
 		// Read header (16 bytes)
 		header := make([]byte, headerSize)
 		if _, err = io.ReadFull(conn, header); err != nil {
@@ -272,6 +276,12 @@ func handleConn(conn net.Conn) {
 
 		if debug {
 			logger.Log(logger.Fields{"deviceID": deviceID, "pktType": packetType, "pktSize": packetSize}).Info("header packet received")
+		}
+
+		// Reject oversized payloads before allocating; the size is client-supplied.
+		if packetSize > maxPacketSize {
+			logger.Log(logger.Fields{"packetSize": packetSize, "source": conn.RemoteAddr()}).Error("Packet size exceeds maximum allowed size")
+			return
 		}
 
 		// Read payload if present

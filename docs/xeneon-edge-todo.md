@@ -15,6 +15,13 @@ a time; newest context at the bottom of each item.
 
 ## Done (this session)
 - [x] Fix side-column span rendering (Weather grow-up, GPU Monitor data-span)
+- [x] `RenderTemplate` logs template execution errors (previously silently rendered empty widget slots)
+- [x] Language values fall back to en_US for untranslated keys (`GetValue` + `/api/language` via `GetLanguageForRender`); all missing keys translated for de/fr/hr/pt-BR/ru/sv
+- [x] Phase 1 roadmap slices implemented (roadmap `docs/xeneon-edge-roadmap.md`): profiles endpoint + touchscreen swipe between profiles with page dots, Twitch chat/live embed widgets (catalog 30/31), air-quality badge in the weather card, Stopwatch embed widget (catalog 32). Reviewed by DeepSeek V4.1-Flash; XSS/dropped-fail/stale-touch/NaN findings fixed.
+- [x] Phase 2 roadmap slices implemented (roadmap `docs/xeneon-edge-roadmap.md`): system volume widget via new PipeWire binding (catalog 26), Sensor Chart via new `src/history` ring buffer (catalog 28), desktop notification capture via session-bus monitor with placement-gated privacy (catalog 29), Launch App allowlist executor (catalog 27, `database/xeneon/actions.json`). Reviewed by DeepSeek V4.1-Flash: fixed sink-hook corruption in the C binding, `last_error` race, sync-timeout throttling, action re-validation + atomic write + process-group kill, idle-ring pruning, and the pre-existing `GetCpuUtilization` race.
+- [x] Phase 3 roadmap slices implemented (roadmap `docs/xeneon-edge-roadmap.md`): DDC/CI display control (brightness/contrast/RGB, live-verified vs ddcutil; udev i2c rule; per-code availability; profile persistence + config sliders), custom widget upload/sandboxed serving (zip-slip hardened, catalog 33), CORS whitelist for read-only data endpoints, origin gate on all mutating endpoints, cage kiosk docs + script, data-API docs. Auto-rotation: R1 investigation concluded no accelerometer exists (outcome C) — manual rotation stays, evidence in `docs/xeneon-edge-kde.md`. DeepSeek V4.1-Flash close-out: fixed availability-latch recovery, stale fd after rescan, atomic upload swap, upload count cap, origin gate.
+- [x] Local Go builds: `CGO_CFLAGS_ALLOW=-fno-strict-overflow` needed with Go >= 1.26 + system PipeWire (applied via `go env -w`; Dockerfile and CI already carried it)
+- [x] Config page shows a "Not placed" marker for catalog widgets assigned to no area (new catalog widgets used to appear invisibly)
 - [x] Add 6 embeddable third-party edge widgets (World Clock, Focus Timer,
       Countdowns, Habit Rings, Daily Brief, GitHub Repo Monitor)
 - [x] Spotify Web API now-playing widget (connected & verified live)

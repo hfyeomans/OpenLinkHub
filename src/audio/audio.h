@@ -88,3 +88,53 @@ const char* audio_engine_current_sink_name(void);
 
 /* Returns the description of the currently selected sink, or NULL if none. */
 const char* audio_engine_current_sink_desc(void);
+
+/*
+ * System volume control (implemented in volume.c).
+ *
+ * These functions run on an INDEPENDENT PipeWire connection (own
+ * pw_thread_loop + pw_context + pw_core + registry) and never touch the
+ * virtual-sink DSP engine in audio.c.
+ *
+ * Volume is LINEAR 0..1 (1.0 = no attenuation, 0.0 = silence). The UI
+ * maps 0-100 linearly onto this range. This diverges from wpctl's cubic
+ * display scale, but matches the underlying linear node volumes that
+ * `wpctl get-volume` also reports.
+ *
+ * The target sink is resolved per call:
+ *   1. the metadata "default" object's default.audio.sink entry,
+ *   2. otherwise the first Audio/Sink node that is not the engine's own
+ *      virtual sink,
+ *   3. otherwise the first Audio/Sink node.
+ *
+ * All functions are safe to call from any thread, are bounded in time
+ * (no unbounded blocking; the only longer wait is the bounded initial
+ * connection sync), and return 0 on success or a negative error code:
+ *   -1 no sink available / sink Props not available
+ *   -2 PipeWire connection failed or unavailable (retry-throttled)
+ *   -3 parameter (pod) build or write failed
+ */
+
+/* Returns a malloc'd copy of the last error message set by the system
+ * volume module (caller frees), or an empty string. */
+char* audio_system_last_error(void);
+
+/*
+ * Reads the resolved default sink's volume (linear 0..1) and mute state.
+ * Either output pointer may be NULL to skip that value.
+ * Returns 0 on success, negative error code on failure.
+ */
+int audio_system_get_volume(float *volume, int *muted);
+
+/*
+ * Sets the resolved default sink's volume. v is clamped to linear 0..1.
+ * Existing per-channel volumes are scaled proportionally to preserve
+ * balance. Returns 0 on success, negative error code on failure.
+ */
+int audio_system_set_volume(float v);
+
+/*
+ * Mutes (muted != 0) or unmutes (muted == 0) the resolved default sink.
+ * Returns 0 on success, negative error code on failure.
+ */
+int audio_system_set_mute(int muted);

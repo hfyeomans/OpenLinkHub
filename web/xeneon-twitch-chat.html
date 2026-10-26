@@ -1,0 +1,15 @@
+{{ define "xeneon-twitch-chat" }}
+{{ $root := .Root }}
+{{ $widget := .Widget }}
+<div class="edge-panel media-panel" id="xeneon-twitch-chat-{{ $widget.Id }}"{{ with .Span }} style="flex-grow: {{ . }};"{{ end }} data-channel="{{ $widget.Channel }}">
+    <div class="card system-card"{{ template "widget-card-style" $widget }}>
+        <div class="card-body">
+            {{ if $widget.Channel }}
+            <iframe class="weburl-frame twitch-frame" data-kind="chat" loading="lazy"></iframe>
+            {{ else }}
+            <div class="media-placeholder">{{ $root.Lang "txtTwitchNoChannel" }}</div>
+            {{ end }}
+        </div>
+    </div>
+</div>
+{{ end }}

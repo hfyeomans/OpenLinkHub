@@ -115,17 +115,23 @@ extract_with_progress() {
   echo
 }
 
-section "Fetching latest release"
+if [[ -n "${OPENLINKHUB_VERSION:-}" ]]; then
+  RELEASE_API="https://api.github.com/repos/jurkovic-nikola/OpenLinkHub/releases/tags/${OPENLINKHUB_VERSION}"
+  section "Fetching release ${OPENLINKHUB_VERSION}"
+else
+  RELEASE_API="$REPO_API"
+  section "Fetching latest release"
+fi
 
 TAR_URL="$(
-  curl -fsSL "$REPO_API" \
+  curl -fsSL "$RELEASE_API" \
     | grep -Eo '"browser_download_url":\s*"[^"]+\.tar\.gz"' \
     | sed -E 's/"browser_download_url":\s*"([^"]+)"/\1/' \
     | head -n 1
 )"
 
 if [[ -z "${TAR_URL:-}" ]]; then
-  error "Could not find a .tar.gz asset in the latest release."
+  error "Could not find a .tar.gz asset in the release."
   exit 1
 fi
 
@@ -224,7 +230,6 @@ udevadm control --reload-rules
 udevadm trigger
 
 chown -R "$USER_TO_CHECK":"$USER_TO_CHECK" "$CURRENT_DIR"
-chmod -R 755 "$CURRENT_DIR"
 EOF
 
 success "Permissions and udev rules installed"

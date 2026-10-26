@@ -1,0 +1,12 @@
+{{ define "xeneon-volume" }}
+{{ $widget := .Widget }}
+<div class="edge-panel volume-panel" id="xeneon-volume-{{ $widget.Id }}"{{ with .Span }} style="flex-grow: {{ . }};"{{ end }}>
+    <div class="card system-card"{{ template "widget-card-style" $widget }}>
+        <div class="card-body volume-body">
+            <div class="volume-icon">--</div>
+            <input type="range" class="volume-slider" min="0" max="100" step="1" value="50" aria-label="Volume">
+            <button type="button" class="volume-mute">--</button>
+        </div>
+    </div>
+</div>
+{{ end }}

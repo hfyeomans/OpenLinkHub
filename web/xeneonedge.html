@@ -75,8 +75,10 @@
                             <div class="settings-list">
                                 <!-- Widgets -->
                                 {{ range $key, $widget := $deviceProfile.Widgets }}
+                                {{ $placed := false }}
+                                {{ range $areaId, $area := $deviceProfile.WidgetAreas }}{{ if eq $area.WidgetId $widget.Id }}{{ $placed = true }}{{ end }}{{ end }}
                                 <div class="settings-row">
-                                    <span class="settings-label text-ellipsis">{{ $widget.Name }}</span>
+                                    <span class="settings-label text-ellipsis">{{ $widget.Name }}{{ if not $placed }} <span style="font-size:11px;opacity:.55">{{ $root.Lang "txtWidgetNotPlaced" }}</span>{{ end }}</span>
                                     <label>
                                         <button class="system-button center configureWidget"
                                                 data-info="{{ $widget.Id }}"
@@ -94,6 +96,9 @@
                                                 data-textcolor="{{ $widget.TextColor }}"
                                                 data-backgroundcolor="{{ $widget.BackgroundColor }}"
                                                 data-url="{{ $widget.Url }}"
+                                                data-channel="{{ $widget.Channel }}"
+                                                data-sensor="{{ $widget.Sensor }}"
+                                                data-window="{{ $widget.Window }}"
                                                 data-mediafile="{{ $widget.MediaFile }}"
                                                 data-fit="{{ $widget.Fit }}"
                                                 data-interval="{{ $widget.Interval }}">{{ $txtConfigure }}</button>
@@ -114,6 +119,47 @@
                                     <button class="system-button center" id="xeneonMediaUpload">{{ .Lang "txtUpload" }}</button>
                                 </div>
                                 <div id="xeneonMediaList"></div>
+                            </div><br />
+
+                            <!-- Custom widgets -->
+                            <div class="settings-list">
+                                <div class="settings-row">
+                                    <span class="settings-label text-ellipsis">{{ .Lang "txtCustomWidgets" }}</span>
+                                </div>
+                                <div class="settings-row">
+                                    <input type="file" id="xeneonWidgetFile" class="system-input compact" accept=".zip,.html">
+                                </div>
+                                <div class="settings-row">
+                                    <button class="system-button center" id="xeneonWidgetUpload">{{ .Lang "txtUploadWidget" }}</button>
+                                </div>
+                                <div id="xeneonWidgetList"></div>
+                            </div><br />
+
+                            <!-- Display settings (DDC/CI) -->
+                            <div class="settings-list" id="xeneonDisplaySettings">
+                                <div class="settings-row">
+                                    <span class="settings-label text-ellipsis">{{ .Lang "txtDisplaySettings" }}</span>
+                                </div>
+                                <div class="settings-row" data-code="brightness">
+                                    <span class="settings-label text-ellipsis">{{ .Lang "txtBrightness" }}</span>
+                                    <input type="range" class="display-slider" min="0" max="100" step="1">
+                                </div>
+                                <div class="settings-row" data-code="contrast">
+                                    <span class="settings-label text-ellipsis">{{ .Lang "txtContrast" }}</span>
+                                    <input type="range" class="display-slider" min="0" max="100" step="1">
+                                </div>
+                                <div class="settings-row" data-code="red">
+                                    <span class="settings-label text-ellipsis">{{ .Lang "txtRed" }}</span>
+                                    <input type="range" class="display-slider" min="0" max="255" step="1">
+                                </div>
+                                <div class="settings-row" data-code="green">
+                                    <span class="settings-label text-ellipsis">{{ .Lang "txtGreen" }}</span>
+                                    <input type="range" class="display-slider" min="0" max="255" step="1">
+                                </div>
+                                <div class="settings-row" data-code="blue">
+                                    <span class="settings-label text-ellipsis">{{ .Lang "txtBlue" }}</span>
+                                    <input type="range" class="display-slider" min="0" max="255" step="1">
+                                </div>
                             </div><br />
 
                             <!-- Spotify -->

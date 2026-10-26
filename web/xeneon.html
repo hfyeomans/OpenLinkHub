@@ -43,7 +43,7 @@
         <section class="edge-segment edge-side">
             {{ range $slot := $device.SegmentSlots 1 12 2 }}
             <div class="edge-slot" style="grid-row: {{ $slot.Row }} / span {{ $slot.Span }};">
-                {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget "Span" $slot.Span) }}
+                {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget "Span" $slot.Span "Device" $device) }}
             </div>
             {{ end }}
         </section>
@@ -59,7 +59,7 @@
                     {{ range $i := $pair }}
                     {{ $w := $device.AreaWidget $i }}
                     {{ if $w }}
-                    {{ $.RenderTemplate $w.Template ($.Dict "Root" $ "Widget" $w) }}
+                    {{ $.RenderTemplate $w.Template ($.Dict "Root" $ "Widget" $w "Device" $device) }}
                     {{ end }}
                     {{ end }}
                 </div>
@@ -71,12 +71,13 @@
         <section class="edge-segment edge-side">
             {{ range $slot := $device.SegmentSlots 9 10 11 }}
             <div class="edge-slot" style="grid-row: {{ $slot.Row }} / span {{ $slot.Span }};">
-                {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget "Span" $slot.Span) }}
+                {{ $.RenderTemplate $slot.Widget.Template ($.Dict "Root" $ "Widget" $slot.Widget "Span" $slot.Span "Device" $device) }}
             </div>
             {{ end }}
         </section>
     </div>
 </div>
+<div id="edgePageDots"></div>
 <script src="/static/js/xeneon.js?v={{ .AssetVer }}"></script>
 </body>
 </html>

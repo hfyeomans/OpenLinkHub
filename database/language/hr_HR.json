@@ -689,6 +689,20 @@
     "txtSurfaceSelection": "Odabir površine",
     "txtInvalidSurfaceSelectionOption": "Nevažeća opcija odabira površine",
     "txtSurfaceSelectionUpdated": "Odabir površine je uspješno ažuriran",
-    "txtUnableToUpdateSurfaceSelection": "Nije moguće ažurirati odabir površine"
+    "txtUnableToUpdateSurfaceSelection": "Nije moguće ažurirati odabir površine",
+    "txtSpotify": "Spotify",
+    "txtSpotifyClientId": "ID klijenta",
+    "txtSpotifyClientSecret": "Tajna klijenta",
+    "txtSpotifySaveCreds": "Spremi vjerodajnice",
+    "txtSpotifyGetAuth": "Dohvati poveznicu za autorizaciju",
+    "txtSpotifyPasteCode": "Zalijepi kôd iz preusmjeravanja",
+    "txtSpotifyConnect": "Poveži",
+    "txtSpotifyDisconnect": "Odspoji",
+    "txtSpotifyCredentialsSaved": "Spotify vjerodajnice spremljene",
+    "txtSpotifyConnected": "Spotify povezan",
+    "txtSpotifyDisconnected": "Spotify odspojen",
+    "txtSpotifyInvalidAction": "Neispravna radnja upravljanja",
+    "txtSpotifyIdle": "Ništa se ne reproducira na Spotifyu",
+    "txtWidgetNotPlaced": "Nije postavljeno"
   }
 }

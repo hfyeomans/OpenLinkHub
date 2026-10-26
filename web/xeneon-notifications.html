@@ -1,0 +1,12 @@
+{{ define "xeneon-notifications" }}
+{{ $root := .Root }}
+{{ $widget := .Widget }}
+<div class="edge-panel" id="xeneon-notifications-{{ $widget.Id }}"{{ with .Span }} style="flex-grow: {{ . }};"{{ end }}>
+    <div class="card system-card"{{ template "widget-card-style" $widget }}>
+        <div class="card-body notifications-body">
+            <div class="notifications-list"></div>
+            <div class="media-placeholder notifications-empty" hidden>{{ $root.Lang "txtXeneonNoNotifications" }}</div>
+        </div>
+    </div>
+</div>
+{{ end }}

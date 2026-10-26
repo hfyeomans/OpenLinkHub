@@ -650,8 +650,11 @@ func (d *Device) Stop() {
 
 			}
 			if d.queue != nil {
+				// Hold the queue lifecycle lock so writeColorEx cannot send on the channel while it is closed
+				d.deviceLock.Lock()
 				close(d.queue)
 				d.queue = nil
+				d.deviceLock.Unlock()
 			}
 		})
 	}()
@@ -717,8 +720,11 @@ func (d *Device) StopDirty() uint8 {
 
 			}
 			if d.queue != nil {
+				// Hold the queue lifecycle lock so writeColorEx cannot send on the channel while it is closed
+				d.deviceLock.Lock()
 				close(d.queue)
 				d.queue = nil
+				d.deviceLock.Unlock()
 			}
 		})
 	}()
@@ -3498,6 +3504,9 @@ func (d *Device) getDeviceData() {
 	if d.Debug {
 		logger.Log(logger.Fields{"serial": d.Serial, "data": fmt.Sprintf("% 2x", response), "type": "temperature"}).Info("getDeviceData()")
 	}
+	if response == nil {
+		return
+	}
 
 	if response[3] == 0x00 {
 		amount = response[6]
@@ -3727,12 +3736,20 @@ func (d *Device) getDevices() int {
 	if d.Debug {
 		logger.Log(logger.Fields{"serial": d.Serial, "data": fmt.Sprintf("% 2x", response)}).Info("getDevices()")
 	}
+	if len(response) < 8 {
+		logger.Log(logger.Fields{"serial": d.Serial}).Warn("getDevices() - Malformed device data, response too short")
+		return 0
+	}
 
 	channels := response[6]
 	data := response[7:]
 	position := 0
 	duoPort := 1
 	for i := 1; i <= int(channels); i++ {
+		if position+8 > len(data) {
+			logger.Log(logger.Fields{"serial": d.Serial}).Warn("getDevices() - Malformed device data, not enough bytes for device entry")
+			break
+		}
 		deviceIdLen := data[position+7]
 		if deviceIdLen == 0 {
 			position += 8
@@ -3745,6 +3762,10 @@ func (d *Device) getDevices() int {
 			lcdAvailable = true
 		}
 
+		if position+8+int(deviceIdLen) > len(data) {
+			logger.Log(logger.Fields{"serial": d.Serial}).Warn("getDevices() - Malformed device data, device id exceeds buffer")
+			break
+		}
 		deviceId := data[position+8 : position+8+int(deviceIdLen)]
 
 		// Get device definition
@@ -4904,6 +4925,10 @@ func (d *Device) setSoftwareMode() {
 // getLedDevices will get all connected LED data
 func (d *Device) getLedDevices() {
 	buf := d.read(modeGetLeds, nil, false)
+	if len(buf) < 7 {
+		logger.Log(logger.Fields{"serial": d.Serial}).Warn("getLedDevices() - Malformed LED data, response too short")
+		return
+	}
 	channels := buf[6]
 	data := buf[7:]
 
@@ -4912,6 +4937,10 @@ func (d *Device) getLedDevices() {
 	}
 
 	for i := 1; i <= int(channels); i++ {
+		if i*4+4 > len(data) {
+			logger.Log(logger.Fields{"serial": d.Serial}).Warn("getLedDevices() - Malformed LED data, not enough bytes for channel entry")
+			break
+		}
 		var numLEDs uint16 = 0
 		connected := binary.LittleEndian.Uint16(data[i*4:i*4+2]) == 2
 		if connected {
@@ -5018,7 +5047,8 @@ func (d *Device) getDeviceFirmware() {
 	d.FirmwareInternal = []int{v1, v2, v3}
 }
 
-// read will read data from a device and return data as a byte array
+// read will read data from a device and return data as a byte array.
+// A nil result means the read failed and must not be used.
 func (d *Device) read(endpoint, bufferType []byte, psu bool) []byte {
 	d.deviceLock.Lock()
 	defer d.deviceLock.Unlock()
@@ -5028,22 +5058,26 @@ func (d *Device) read(endpoint, bufferType []byte, psu bool) []byte {
 	_, err := d.transfer(cmdCloseEndpoint, endpoint, psu)
 	if err != nil {
 		logger.Log(logger.Fields{"error": err}).Error("Unable to close endpoint")
+		return nil
 	}
 
 	_, err = d.transfer(cmdOpenEndpoint, endpoint, psu)
 	if err != nil {
 		logger.Log(logger.Fields{"error": err}).Error("Unable to open endpoint")
+		return nil
 	}
 
 	buffer, err = d.transfer(cmdRead, endpoint, psu)
 	if err != nil {
 		logger.Log(logger.Fields{"error": err}).Error("Unable to read endpoint")
+		return nil
 	}
 
 	if responseMatch(buffer, bufferType) {
 		next, e := d.transfer(cmdRead, endpoint, psu)
 		if e != nil {
 			logger.Log(logger.Fields{"error": e}).Error("Unable to read endpoint")
+			return nil
 		}
 		buffer = append(buffer, next[4:]...)
 	}
@@ -5051,6 +5085,7 @@ func (d *Device) read(endpoint, bufferType []byte, psu bool) []byte {
 	_, err = d.transfer(cmdCloseEndpoint, endpoint, psu)
 	if err != nil {
 		logger.Log(logger.Fields{"error": err}).Error("Unable to close endpoint")
+		return nil
 	}
 	return buffer
 }
@@ -5387,7 +5422,8 @@ func (d *Device) setupLCD() {
 	}()
 }
 
-// write will perform write operation to the device
+// write will perform write operation to the device.
+// A nil result means the write failed and must not be used.
 func (d *Device) write(endpoint, bufferType, data []byte) []byte {
 	d.deviceLock.Lock()
 	defer d.deviceLock.Unlock()
@@ -5406,25 +5442,25 @@ func (d *Device) write(endpoint, bufferType, data []byte) []byte {
 	_, err := d.transfer(cmdCloseEndpoint, endpoint, false)
 	if err != nil {
 		logger.Log(logger.Fields{"error": err}).Error("Unable to close endpoint")
-		return bufferR
+		return nil
 	}
 
 	_, err = d.transfer(cmdOpenEndpoint, endpoint, false)
 	if err != nil {
 		logger.Log(logger.Fields{"error": err}).Error("Unable to open endpoint")
-		return bufferR
+		return nil
 	}
 
 	bufferR, err = d.transfer(cmdWrite, buffer, false)
 	if err != nil {
 		logger.Log(logger.Fields{"error": err}).Error("Unable to write to endpoint")
-		return bufferR
+		return nil
 	}
 
 	_, err = d.transfer(cmdCloseEndpoint, endpoint, false)
 	if err != nil {
 		logger.Log(logger.Fields{"error": err}).Error("Unable to close endpoint")
-		return bufferR
+		return nil
 	}
 	return bufferR
 }
@@ -5472,13 +5508,18 @@ func (d *Device) writeColorEx(data []byte, _ int) {
 	if !d.DeviceProfile.OpenRGBIntegration {
 		return
 	}
-	if d.Exit {
-		return
-	}
 
 	// Copy data to avoid race conditions, since the caller might reuse the slice
 	copyData := make([]byte, len(data))
 	copy(copyData, data)
+
+	// Hold the queue lifecycle lock so Stop cannot close the channel mid-send
+	d.deviceLock.Lock()
+	defer d.deviceLock.Unlock()
+
+	if d.Exit || d.queue == nil {
+		return
+	}
 
 	select {
 	case d.queue <- copyData:
@@ -5671,8 +5712,12 @@ func (d *Device) transfer(endpoint, buffer []byte, psu bool) ([]byte, error) {
 		if len(buffer) > 0 {
 			copy(bufferW[headerSize+len(endpoint):headerSize+len(endpoint)+len(buffer)], buffer)
 		}
-		if _, err := d.dev.Write(bufferW); err != nil {
-			logger.Log(logger.Fields{"error": err, "serial": d.Serial}).Error("Unable to write to a device")
+		n, err := d.dev.Write(bufferW)
+		if err != nil {
+			return bufferR, err
+		}
+		if n != len(bufferW) {
+			return bufferR, fmt.Errorf("short write to device %s: wrote %d of %d bytes", d.Serial, n, len(bufferW))
 		}
 	} else {
 		bufferW := make([]byte, bufferSizeWrite)
@@ -5686,12 +5731,16 @@ func (d *Device) transfer(endpoint, buffer []byte, psu bool) ([]byte, error) {
 			copy(bufferW[headerSize+len(endpoint):headerSize+len(endpoint)+len(buffer)], buffer)
 		}
 
-		if _, err := d.dev.Write(bufferW); err != nil {
-			logger.Log(logger.Fields{"error": err, "serial": d.Serial}).Error("Unable to write to a device")
+		n, err := d.dev.Write(bufferW)
+		if err != nil {
+			return bufferR, err
+		}
+		if n != len(bufferW) {
+			return bufferR, fmt.Errorf("short write to device %s: wrote %d of %d bytes", d.Serial, n, len(bufferW))
 		}
 
 		if _, err := d.dev.Read(bufferR); err != nil {
-			logger.Log(logger.Fields{"error": err, "serial": d.Serial}).Error("Unable to read data from device")
+			return bufferR, err
 		}
 	}
 	return bufferR, nil

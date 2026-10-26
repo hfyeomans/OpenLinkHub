@@ -13,7 +13,10 @@ package spotify
 import (
 	"OpenLinkHub/src/config"
 	"OpenLinkHub/src/logger"
+	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,6 +66,7 @@ var (
 	mu          sync.RWMutex
 	refreshMu   sync.Mutex // serializes token refreshes so a burst makes one network call
 	creds       credentials
+	oauthState  string // state token issued by AuthURL and required by the callback
 	accessToken string
 	accessExp   time.Time
 	httpClient  = &http.Client{Timeout: 10 * time.Second}
@@ -159,17 +163,36 @@ func SetCredentials(clientID, clientSecret string) error {
 
 // AuthURL builds the Spotify authorization URL the user opens once to grant access.
 func AuthURL() (string, error) {
-	mu.RLock()
-	defer mu.RUnlock()
+	mu.Lock()
+	defer mu.Unlock()
 	if creds.ClientID == "" {
 		return "", errors.New("set client id and secret first")
 	}
+	// Rotate the CSRF state token on every URL issue; VerifyState rejects any
+	// callback whose state does not match the latest one.
+	stateBytes := make([]byte, 32)
+	if _, err := rand.Read(stateBytes); err != nil {
+		return "", fmt.Errorf("generate oauth state: %w", err)
+	}
+	oauthState = hex.EncodeToString(stateBytes)
 	q := url.Values{}
 	q.Set("client_id", creds.ClientID)
 	q.Set("response_type", "code")
 	q.Set("redirect_uri", RedirectURI())
 	q.Set("scope", scopes)
+	q.Set("state", oauthState)
 	return authorizeURL + "?" + q.Encode(), nil
+}
+
+// VerifyState reports whether the given state matches the token issued by the
+// most recent AuthURL call. Missing or mismatched state (login CSRF) is rejected.
+func VerifyState(state string) bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	if oauthState == "" || state == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(state), []byte(oauthState)) == 1
 }
 
 // Exchange trades an authorization code for a refresh token and stores it.

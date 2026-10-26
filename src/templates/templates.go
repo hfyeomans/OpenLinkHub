@@ -89,6 +89,7 @@ func (w Web) RenderTemplate(name string, data any) template.HTML {
 	}
 	var buf bytes.Buffer
 	if err := templates.ExecuteTemplate(&buf, name, data); err != nil {
+		logger.Log(logger.Fields{"error": err, "template": name}).Warn("Unable to render template")
 		return ""
 	}
 	return template.HTML(buf.String())

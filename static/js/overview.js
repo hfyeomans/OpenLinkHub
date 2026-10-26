@@ -1809,6 +1809,9 @@ $(document).ready(function () {
         const isThermal = /^xeneon-(cpu|gpu)-(temp|load)$/.test(template);
         const isImage = template === 'xeneon-image';
         const isSlideshow = template === 'xeneon-slideshow';
+        const isTwitch = template === 'xeneon-twitch-chat' || template === 'xeneon-twitch-live';
+        const isChart = template === 'xeneon-chart';
+        const isCustom = template === 'xeneon-custom';
         const isWebUrl = template === 'xeneon-weburl';
 
         const weatherRows = `
@@ -1921,6 +1924,45 @@ $(document).ready(function () {
             </div>
         `;
 
+        const twitchRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtTwitchChannel', 'Channel')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetChannel"><input type="text" id="widgetChannel" autocomplete="off" placeholder="shroud"></label>
+                </div>
+            </div>
+        `;
+
+        const chartRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtSensor', 'Sensor key')}</span>
+                <div class="system-input text-input">
+                    <label for="widgetSensor"><input type="text" id="widgetSensor" autocomplete="off" placeholder="cpu-temp, gpu-0-load, storage-1-temp"></label>
+                </div>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtWindow', 'Window')}</span>
+                <label for="widgetWindow">
+                    <select id="widgetWindow" class="system-select auto-width compact">
+                        <option value="5">${i18n.t('txtMinutes5', '5 minutes')}</option>
+                        <option value="15">${i18n.t('txtMinutes15', '15 minutes')}</option>
+                        <option value="30">${i18n.t('txtMinutes30', '30 minutes')}</option>
+                    </select>
+                </label>
+            </div>
+        `;
+
+        const customRows = `
+            <div class="settings-row">
+                <span class="settings-label text-ellipsis">${i18n.t('txtWidgetLabel', 'Widget')}</span>
+                <label for="widgetSlug">
+                    <select id="widgetSlug" class="system-select auto-width compact">
+                        <option value="">${i18n.t('txtNone', 'None')}</option>
+                    </select>
+                </label>
+            </div>
+        `;
+
         // Thermal widgets own their text color as a type control (it predates the
         // custom-style system), so their style section toggles background only.
         const styleTextRow = isThermal ? '' : `
@@ -1958,6 +2000,12 @@ $(document).ready(function () {
             typeRows = slideshowRows;
         } else if (isWebUrl) {
             typeRows = weburlRows;
+        } else if (isTwitch) {
+            typeRows = twitchRows;
+        } else if (isChart) {
+            typeRows = chartRows;
+        } else if (isCustom) {
+            typeRows = customRows;
         }
 
         const openModal = function (mediaFiles) {
@@ -2021,6 +2069,25 @@ $(document).ready(function () {
                     modal.find('#widgetFit').val($btn.attr('data-fit') || 'cover');
                 } else if (isWebUrl) {
                     modal.find('#widgetUrl').val($btn.attr('data-url'));
+                } else if (isTwitch) {
+                    modal.find('#widgetChannel').val($btn.attr('data-channel'));
+                } else if (isChart) {
+                    modal.find('#widgetSensor').val($btn.attr('data-sensor'));
+                    modal.find('#widgetWindow').val($btn.attr('data-window') || '15');
+                } else if (isCustom) {
+                    const current = ($btn.attr('data-url') || '').replace(/^\/api\/xeneon\/widgets\//, '').replace(/\/$/, '');
+                    $.getJSON('/api/xeneon/widgets', function (response) {
+                        const $select = modal.find('#widgetSlug');
+                        const slugs = (response.status === 1 && response.data) ? response.data.map(w => w.slug) : [];
+                        // Keep a still-referenced but deleted slug selectable.
+                        if (current && slugs.indexOf(current) === -1) {
+                            slugs.push(current);
+                        }
+                        $.each(slugs, function (_, slug) {
+                            $select.append($('<option>', {value: slug, text: slug}));
+                        });
+                        $select.val(current);
+                    });
                 }
 
                 const backgroundColor = $btn.attr('data-backgroundcolor') || '';
@@ -2081,6 +2148,24 @@ $(document).ready(function () {
                             return false;
                         }
                         widgetData.url = url;
+                    } else if (isTwitch) {
+                        const channel = modal.find('#widgetChannel').val().trim();
+                        if (channel.length > 0 && !/^[a-zA-Z0-9_]{3,25}$/.test(channel)) {
+                            toast.warning(i18n.t('txtTwitchInvalidChannel', 'Channel must be 3-25 characters (letters, numbers, underscore)'));
+                            return false;
+                        }
+                        widgetData.channel = channel;
+                    } else if (isChart) {
+                        const sensor = modal.find('#widgetSensor').val().trim();
+                        if (!/^[a-z]+(-[0-9]+)?-(temp|load)$/.test(sensor)) {
+                            toast.warning(i18n.t('txtXeneonInvalidSensor', 'Sensor key must look like cpu-temp, gpu-0-load or storage-1-temp'));
+                            return false;
+                        }
+                        widgetData.sensor = sensor;
+                        widgetData.window = parseInt(modal.find('#widgetWindow').val());
+                    } else if (isCustom) {
+                        const slug = modal.find('#widgetSlug').val();
+                        widgetData.url = slug ? '/api/xeneon/widgets/' + slug + '/' : '';
                     }
 
                     // Custom style. Thermal text color is saved above as a type control;
@@ -2206,6 +2291,127 @@ $(document).ready(function () {
                     } else {
                         toast.warning(response.message);
                     }
+                }
+            });
+        });
+    }
+
+    // DDC/CI display settings: debounced sliders, per-code availability.
+    if ($('#xeneonDisplaySettings').length) {
+        const displayTimers = {};
+        $.ajax({
+            url: '/api/xeneon/display',
+            method: 'GET',
+            dataType: 'json',
+            success: function (response) {
+                if (response.status !== 1 || !response.data) return;
+                $('#xeneonDisplaySettings [data-code]').each(function () {
+                    const $row = $(this);
+                    const code = $row.attr('data-code');
+                    const setting = response.data[code];
+                    const $slider = $row.find('.display-slider');
+                    if (!setting || !setting.available) {
+                        $slider.prop('disabled', true).attr('title', i18n.t('txtDisplayUnavailable', 'Display setting unavailable'));
+                        $row.find('.settings-label').css('opacity', 0.5);
+                        return;
+                    }
+                    $slider.val(setting.current).attr('max', setting.max);
+                    $slider.on('input', function () {
+                        const value = parseInt($(this).val(), 10);
+                        clearTimeout(displayTimers[code]);
+                        displayTimers[code] = setTimeout(function () {
+                            const pf = {};
+                            pf[code] = value;
+                            $.ajax({
+                                url: '/api/xeneon/display',
+                                method: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify(pf),
+                                error: function (xhr) {
+                                    toast.warning(xhr.responseText || i18n.t('txtDisplayUnavailable', 'Display setting unavailable'));
+                                }
+                            });
+                        }, 300);
+                    });
+                });
+            }
+        });
+    }
+
+    // Xeneon custom widgets (uploaded zip/html archives)
+    if ($('#xeneonWidgetList').length) {
+        const refreshWidgetList = function () {
+            $.ajax({
+                url: '/api/xeneon/widgets',
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    const $list = $('#xeneonWidgetList');
+                    $list.empty();
+                    const widgets = (response.status === 1 && response.data) ? response.data : [];
+                    $.each(widgets, function (_, w) {
+                        const $row = $(
+                            '<div class="settings-row">' +
+                            '<span class="settings-label text-ellipsis media-name"></span>' +
+                            '<button class="system-button danger center deleteWidgetSlug"></button>' +
+                            '</div>'
+                        );
+                        $row.find('.media-name').text(w.slug).attr('title', w.slug);
+                        $row.find('.deleteWidgetSlug').text(i18n.t('txtDelete', 'Delete')).attr('data-info', w.slug);
+                        $list.append($row);
+                    });
+                }
+            });
+        };
+        refreshWidgetList();
+
+        $('#xeneonWidgetUpload').on('click', function () {
+            const fileInput = $('#xeneonWidgetFile')[0];
+            if (!fileInput || !fileInput.files.length) {
+                toast.warning(i18n.t('txtNoMediaSelected', 'No media file selected'));
+                return false;
+            }
+            const btn = $(this);
+            btn.prop('disabled', true);
+            const formData = new FormData();
+            formData.append('widgetArchive', fileInput.files[0]);
+            $.ajax({
+                url: '/api/xeneon/widgets/upload',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    btn.prop('disabled', false);
+                    if (response.status === 1) {
+                        fileInput.value = '';
+                        toast.success(response.message || i18n.t('txtWidgetUploaded', 'Widget uploaded'));
+                        refreshWidgetList();
+                    } else {
+                        toast.warning(response.message || i18n.t('txtUnableToUploadMedia', 'Upload failed'));
+                    }
+                },
+                error: function (xhr) {
+                    btn.prop('disabled', false);
+                    toast.warning(xhr.responseText || i18n.t('txtUnableToUploadMedia', 'Upload failed'));
+                }
+            });
+        });
+
+        $('#xeneonWidgetList').on('click', '.deleteWidgetSlug', function () {
+            $.ajax({
+                url: '/api/xeneon/widgets',
+                type: 'DELETE',
+                data: JSON.stringify({slug: $(this).attr('data-info')}),
+                contentType: 'application/json',
+                cache: false,
+                success: function (response) {
+                    if (response.status === 1) {
+                        toast.success(response.message);
+                    } else {
+                        toast.warning(response.message);
+                    }
+                    refreshWidgetList();
                 }
             });
         });

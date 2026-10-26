@@ -272,8 +272,91 @@ func setAudioConfig(frames, rate, channels, pollingRate, debug uint32) error {
 	}
 
 	if msg, ok := audioErrors[rc]; ok {
-		return fmt.Errorf(msg)
+		return fmt.Errorf("%s", msg)
 	}
 
 	return fmt.Errorf("audio engine error (%d)", rc)
+}
+
+/*
+ * System volume control (PipeWire session binding, volume.c).
+ *
+ * These functions control the system's DEFAULT output sink via an
+ * independent PipeWire connection and never touch the virtual-sink DSP
+ * engine. Volume is LINEAR 0..1 (UI maps 0-100 linearly); note this
+ * diverges from wpctl's cubic display scale, though wpctl reports the
+ * same underlying linear value.
+ *
+ * The C layer is called under the package mutex (same discipline as
+ * GetSinks); C calls are non-blocking cache reads/writes, except for a
+ * one-time bounded connection sync on first use.
+ */
+
+// GetSystemVolume will return the system default sink volume as a linear
+// 0..1 value plus its mute state.
+func GetSystemVolume() (float64, bool, error) {
+	var (
+		volume C.float
+		muted  C.int
+	)
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if rc := C.audio_system_get_volume(&volume, &muted); rc != 0 {
+		return 0, false, systemVolumeError(rc)
+	}
+
+	return float64(volume), muted != 0, nil
+}
+
+// SetSystemVolume will set the system default sink volume. The value is
+// clamped to linear 0..1.
+func SetSystemVolume(v float64) error {
+	if !(v >= 0) { // also catches NaN
+		v = 0
+	} else if v > 1 {
+		v = 1
+	}
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if rc := C.audio_system_set_volume(C.float(v)); rc != 0 {
+		return systemVolumeError(rc)
+	}
+
+	return nil
+}
+
+// SetSystemMute will mute or unmute the system default sink.
+func SetSystemMute(muted bool) error {
+	m := C.int(0)
+	if muted {
+		m = 1
+	}
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if rc := C.audio_system_set_mute(m); rc != 0 {
+		return systemVolumeError(rc)
+	}
+
+	return nil
+}
+
+// systemVolumeError maps a C audio_system_* error code to a Go error,
+// preferring the message stored by the C layer.
+func systemVolumeError(rc C.int) error {
+	// The C layer returns a malloc'd copy; convert and free it.
+	if p := C.audio_system_last_error(); p != nil {
+		msg := C.GoString(p)
+		C.free(unsafe.Pointer(p))
+		if msg != "" {
+			return fmt.Errorf("%s", msg)
+		}
+	}
+
+	return fmt.Errorf("system volume error (%d)", int(rc))
 }

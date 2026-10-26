@@ -5,7 +5,7 @@
     <div class="card system-card"{{ template "widget-card-style" $widget }}>
         <div class="card-body">
             {{ if $widget.Url }}
-            <iframe class="weburl-frame" src="{{ $widget.Url }}" loading="lazy"></iframe>
+            <iframe class="weburl-frame" src="{{ $widget.Url }}" loading="lazy" sandbox="allow-scripts"></iframe>
             {{ else }}
             <div class="media-placeholder">{{ $root.Lang "txtNoUrlConfigured" }}</div>
             {{ end }}
