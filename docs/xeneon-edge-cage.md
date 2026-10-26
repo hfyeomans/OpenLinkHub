@@ -28,7 +28,7 @@ applet — do not fight it with the API.
 
 ## Script
 
-`scripts/start-edge-kiosk.sh` waits for the daemon port and execs
+`scripts/start-edge-kiosk.sh` waits for HTTP success from `/xeneon` and execs
 `cage -d -- <browser> --kiosk <url>`. Browser selection order: chromium →
 google-chrome-stable → firefox. Override with `EDGE_BROWSER=/path/to/browser`.
 
@@ -95,3 +95,43 @@ cage assigns all touch devices to its single output automatically — the
 offset after rotation, verify the browser receives the transformed pointer
 coordinates (the kiosk applies CSS rotation itself; see the orientation notes
 in `xeneon-edge-kde.md`).
+
+## Dedicated NVIDIA launcher and boot permissions
+
+For the TTY-based dual-GPU setup, install the tracked launcher:
+
+```sh
+install -m 0755 scripts/xeneon-cage.sh "$HOME/xeneon-cage.sh"
+```
+
+It selects the DRM card by the connected XENEON EDID and retains software Chrome
+rendering. DRM card numbers can change after a reboot. Check the selected
+connector with `wlr-randr`; `card2` alone is not an error.
+
+Both launchers now require a successful `/xeneon` response before opening the
+browser. The revision API can return 200 while the Edge is unavailable. Requests
+have a two-second connect timeout and a three-second total timeout; exhausting
+the readiness attempts exits with an error instead of opening a failed page.
+
+A white page containing “Xeneon Edge is unavailable” means the daemon could not
+register the device. Check `stdout.log` for HID permission failures and inspect
+the device's udev rules. On this host, early boot could not resolve the
+`openlinkhub` group, and the root-filesystem rules named a nonexistent
+`openlinkhub` owner. The Edge and HX1500i nodes became `root:root 0600`.
+
+For a user service, grant the existing `openlinkhub` group read/write access to
+the required HID devices. The local repair uses two product-specific rules
+(Corsair `1b1c:1d0d` and `1b1c:1c1f`), owner 0, the host's numeric group ID,
+and mode 0660. Numeric IDs avoid name resolution during initramfs startup.
+Determine the group ID with `getent group openlinkhub`; this host uses 973.
+Install the override after the package rules, reload udev, trigger only the
+affected HID devices, and update the current kernel's initramfs so the override
+is present at the next boot. Restart the user service and reload the kiosk only
+after the device nodes are accessible.
+
+Launcher regression checks:
+
+```sh
+python3 scripts/test-start-edge-kiosk.py
+shellcheck scripts/start-edge-kiosk.sh scripts/xeneon-cage.sh
+```

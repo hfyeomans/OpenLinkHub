@@ -5,13 +5,19 @@
 PORT="${EDGE_PORT:-27003}"
 URL="http://127.0.0.1:${PORT}/xeneon"
 
-# Wait for the daemon (max ~30 s) so the first paint is not an error page.
+# Wait for the actual kiosk page; the revision API succeeds without an Edge.
+if ! command -v curl >/dev/null 2>&1; then
+    echo "start-edge-kiosk: curl is required to check $URL" >&2
+    exit 1
+fi
+
 i=0
-while [ "$i" -lt 30 ] && command -v curl >/dev/null 2>&1; do
-    if curl -fsS -o /dev/null "http://127.0.0.1:${PORT}/api/xeneon/revision" 2>/dev/null; then
-        break
-    fi
+while ! curl --connect-timeout 2 --max-time 3 -fsS -o /dev/null "$URL" 2>/dev/null; do
     i=$((i + 1))
+    if [ "$i" -ge 30 ]; then
+        echo "start-edge-kiosk: $URL unavailable after 30 attempts; browser not started" >&2
+        exit 1
+    fi
     sleep 1
 done
 
