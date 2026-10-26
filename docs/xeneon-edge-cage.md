@@ -135,3 +135,18 @@ Launcher regression checks:
 python3 scripts/test-start-edge-kiosk.py
 shellcheck scripts/start-edge-kiosk.sh scripts/xeneon-cage.sh
 ```
+
+### Verified on this host — 2026-10-26
+
+The two HID nodes changed from `root:root 0600` to `root:openlinkhub 0660`
+after installing the numeric-GID override. The current kernel's initramfs was
+regenerated. Restarting `OpenLinkHub.service` initialized both devices and
+changed `/xeneon` from HTTP 500 to HTTP 200. Restarting Cage's kiosk child
+restored the visible dashboard on DP-6 at 2560×720; a panel screenshot confirmed
+the clock, gauges and GPU widgets rendered. The LG output remained disabled.
+
+Five mocked launcher tests, shell syntax and ShellCheck passed, including EDID
+card renumbering and failed-health checks refusing to launch. The deployed
+`~/xeneon-cage.sh` matches the tracked dedicated launcher. Before/after screenshots,
+the original launcher and the local permission repair are retained in
+`~/.local/state/xeneon-repair-20261026/`. A further cold reboot has not been run.
